@@ -1,0 +1,23 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Build Artifacts
+build/
+*.app/
+*.dSYM/
+*.o
+*.swp
+*.tmp
+
+# Runtime logs
+mtld3d-logs/
+*.log
+*.pid
+
+# Application Support local states
+installed_games.json
