@@ -24,16 +24,23 @@ O caminho local usado nos dois foi Wine `cx-26.3.0-9`, Rosetta, x87sidecar coope
 
 ## Splinter Cell Conviction
 
-Continua sem gameplay verificado. Apresentar Windows 7 apenas para `Conviction_game.exe` removeu o aviso de sistema incompatível. Em clone isolado, fornecer o identificador do dispositivo CoreAudio ao DxDiag permitiu passar pela detecção de áudio. Isso não bastou: o caminho Metal encerra antes da partida; OpenGL manteve janela com imagem incorreta. O teste adicional `debug.capsAll=true` também encerrou em cerca de 12 segundos. Esse ajuste não foi incorporado ao aplicativo instalado.
+O diagnóstico chegou a uma receita experimental que abriu o menu e o tutorial em aplicativo independente: Windows 7 para o executável, carregador `version.dll` nativo, FusionFix oficial e `WindowedMode=1`. Um teste posterior removeu o identificador de áudio acrescentado no clone e restaurou `RunValidation=True`: o menu continuou abrindo. Portanto esse ajuste manual de registro não faz parte da receita final. O `SkipSystemDetection` do FusionFix evita a detecção incompatível.
 
-O erro de áudio inicial e a falha posterior são etapas diferentes. Não aplicar todos os testes do clone como se fossem uma solução. Ainda é necessário localizar a razão exata do encerramento do motor do jogo e reproduzir uma partida.
+No app de teste, a cena do café e o menu PAUSE responderam aos comandos; o tutorial avançou até o objetivo de entrar na área do estande. Uma amostra de 29,745 s da cena inicial, com configuração mínima de diagnóstico, teve 54 intervalos, média 59,997 FPS e intervalo 58,140–62,044 FPS. São médias por intervalo, não mínimo por quadro nem resultado de toda a campanha. Não há comprovação de 4K/60.
 
-## O que a versão BTP 0.1.1 comprova
+O perfil incorporado à preparação aceita apenas o SHA256 da edição testada, verifica o ZIP do FusionFix antes de extrair, impede caminhos fora da cópia do jogo, guarda arquivos substituídos e restaura alterações se uma escrita falhar. Mantém o executável original. A versão do pacote é fixada pelo checksum; atualizações do projeto terceiro exigem nova revisão.
+
+A API gráfica continua Metal; OpenGL ajudou no diagnóstico. As tentativas `debug.capsAll=true`, identidade Nvidia e biblioteca modificada do GTA não resolveram o problema inicial. O primeiro teste FusionFix não carregava a ASI porque o `version.dll` estava configurado como builtin. Conferir a biblioteca realmente carregada foi essencial.
+
+A preparação automática pela pasta original também foi executada: o empacotador criou e assinou outro app, que chegou ao menu, abriu a história e exibiu o café; Escape mostrou PAUSE. Esse teste separado confirma o fluxo pasta → perfil → app, além do primeiro app de diagnóstico. A cópia instalada foi atualizada com backup, reabriu a história salva e mostrou a cena do café e PAUSE em 1280 × 720. Ainda faltam confirmar áudio ouvido, controle físico e uma sessão prolongada da campanha.
+
+## O que os testes do BTP comprovam
 
 - Build Swift arm64, sintaxe dos scripts, assinatura ad hoc e ZIP extraído verificados.
 - O empacotador genérico recusa sobreposição com o runtime doador antes de alterar arquivos.
 - O app é montado em staging; falhas de configuração ou assinatura preservam o app anterior; falha na troca tenta restaurá-lo. A versão substituída recebe backup.
-- Sete cenários automatizados passaram: colisão direta, colisão por link, falha do Wine, falha do wineserver, falha de assinatura, falha de instalação e instalação com backup. Esses testes usam substitutos de runtime/assinatura: verificam o empacotador, não jogos.
+- Sete cenários automatizados do empacotador passaram: colisão direta, colisão por link, falha do Wine, falha do wineserver, falha de assinatura, falha de instalação e instalação com backup. Esses testes usam substitutos de runtime/assinatura: verificam o empacotador, não jogos.
+- Quatro testes do perfil Conviction cobrem rejeição de edição desconhecida, caminho malformado de ZIP, preservação da qualidade/executável e restauração após falha de escrita.
 - A interface distingue **Preparado**, arquivos presentes, limite sugerido e FPS medido.
 
 ## Limites para distribuição

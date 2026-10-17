@@ -1,5 +1,5 @@
 #!/bin/bash
-# BREAK genérico: transforma qualquer pasta de jogo Windows em um .app nativo do macOS.
+# BREAK genérico: prepara um launcher macOS para testar um jogo Windows com Wine.
 #
 # Uso:
 #   break-game.sh --title "Nome do Jogo" --game-dir /caminho/da/pasta --exe sub/pasta/jogo.exe \
@@ -166,11 +166,20 @@ query.flushImmediate = true
 query.eventImmediate = true
 EOF
 
+# Receita específica reproduzida em cópia isolada. O helper aceita apenas a
+# edição testada, baixa a correção oficial por checksum e guarda configurações.
+if [[ "$(basename "$EXE" | tr '[:upper:]' '[:lower:]')" == "conviction_game.exe" ]]; then
+    echo "[3/5] Preparando perfil experimental Conviction em janela..."
+    python3 -I "$SCRIPT_DIR/btp-splinter-profile.py" \
+        --game "$GAME_IN_PREFIX/$EXE_DIR_REL" --prefix "$DATA_DIR/prefix-metal" --data "$DATA_DIR"
+    OVERRIDES+=";version=n,b"
+fi
+
 echo "[4/5] Montando $TITLE.app com o BTP HyperMetal Engine..."
 mkdir -p "$APP_STAGE/Contents/MacOS" "$APP_STAGE/Contents/Resources"
 cp "$WORK/GameIcon.icns" "$APP_STAGE/Contents/Resources/GameIcon.icns"
-cp -Rc "$DONOR_RESOURCES/GameRuntime.app" "$APP_STAGE/Contents/Resources/GameRuntime.app"
-cp -Rc "$DONOR_RESOURCES/Underground 2 FPS.app" "$APP_STAGE/Contents/Resources/Underground 2 FPS.app"
+/usr/bin/ditto --norsrc "$DONOR_RESOURCES/GameRuntime.app" "$APP_STAGE/Contents/Resources/GameRuntime.app"
+/usr/bin/ditto --norsrc "$DONOR_RESOURCES/Underground 2 FPS.app" "$APP_STAGE/Contents/Resources/Underground 2 FPS.app"
 cp -f "$DONOR_RESOURCES/RuntimeBootstrap" "$APP_STAGE/Contents/Resources/RuntimeBootstrap"
 cp -f "$DONOR_RESOURCES/x87sidecar" "$APP_STAGE/Contents/Resources/x87sidecar"
 ln -sfn "GameRuntime.app/Contents/Resources/wine" "$APP_STAGE/Contents/Resources/wine"
@@ -210,7 +219,9 @@ export PATH="$RESOURCES/wine/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 export WINEPREFIX="$DATA/prefix-metal"
 export WINESERVER="$RESOURCES/wine/bin/wineserver"
 export WINEARCH=wow64 WINELOADERNOEXEC=1
-export X87_SAMPLE="$DATA/Registros/x87-profile" X87_SAMPLE_HZ=500 X87_SAMPLE_REPORT=5
+if [[ "${BTP_PROFILE_X87:-0}" == 1 ]]; then
+    export X87_SAMPLE="$DATA/Registros/x87-profile" X87_SAMPLE_HZ=500 X87_SAMPLE_REPORT=5
+fi
 export WINEDEBUG=-all,+fps,+timestamp
 export MTL_HUD_ENABLED=1 MTL_HUD_LOG_ENABLED=1 MTL_HUD_OPACITY=0
 printf 'Abrindo BTP HyperMetal Engine (%s). Registro: %s\n' "$TITLE" "$LOG"
@@ -278,4 +289,4 @@ if [[ -e "$TARGET_APP" || -L "$TARGET_APP" ]]; then
 fi
 mv "$APP_STAGE" "$TARGET_APP"
 if [[ -n "$BACKUP_APP" ]]; then echo "Versão anterior preservada em: $BACKUP_APP"; fi
-echo "✅ App nativo criado com sucesso: $TARGET_APP"
+echo "✅ Aplicativo Mac preparado para teste: $TARGET_APP"

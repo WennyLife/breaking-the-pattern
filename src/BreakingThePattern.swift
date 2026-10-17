@@ -344,6 +344,9 @@ final class BTPViewModel: ObservableObject {
     }
 
     var targetFPSLimitValue: Int {
+        if currentProfile?.executable.lowercased().hasSuffix("conviction_game.exe") == true {
+            return 60
+        }
         if let cap = currentProfile?.physicsCapFPS {
             return cap
         }
@@ -1078,7 +1081,7 @@ struct ContentView: View {
                     }
                     Text("BREAKING THE PATTERN")
                         .font(.system(size: 14, weight: .bold))
-                    Text("v0.1.1")
+                    Text("v0.1.2")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                 }

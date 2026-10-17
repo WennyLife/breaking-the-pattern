@@ -39,7 +39,7 @@ Situação registrada em **17 de outubro de 2026**, no Mac de desenvolvimento co
 | **Need for Speed Underground 2** | `SPEED2.EXE` | Usuário confirmou que está jogável | Há medições locais acima de 60 FPS; não estabelecem mínimo sustentado ou desempenho garantido em outros Macs. |
 | **Grand Theft Auto: San Andreas** | `gta_sa.exe` | Usuário confirmou que está jogável | Manter **limite máximo de 60 FPS**: o usuário relatou problemas acima disso. Limite de 60 confirmado no menu; botões do controle ainda precisam de teste físico numa partida. |
 | **Call of Duty: Black Ops II** | `t6sp.exe` | Em teste | App preparado não confirma campanha jogável; medição e partida ainda precisam de validação. |
-| **Splinter Cell: Conviction** | `Conviction_game.exe` | Em teste | App preparado não confirma gameplay; inicialização, comandos e estabilidade precisam de validação. |
+| **Splinter Cell: Conviction** | `Conviction_game.exe` | Cena inicial e tutorial observados em app independente | Perfil experimental Metal em janela + FusionFix para uma edição identificada por SHA256. Amostra de diagnóstico de 30 s perto de 60 FPS; campanha completa, áudio e controle físico ainda pendentes. |
 
 Outros perfis e o fluxo genérico são experimentais. A existência de um preset ou a detecção de um `.exe` não comprova compatibilidade. Não há promessa de suporte a qualquer jogo DirectX 9, de 4K, de 120/155 FPS ou de funcionamento em todos os chips M1–M5.
 
@@ -57,7 +57,9 @@ Os antigos números promocionais de 4K/60, 120 e 155 FPS foram retirados por nã
 
 1. **Adicione a pasta da sua cópia do jogo.** O BTP procura o executável e os caminhos exigidos pelo perfil.
 2. **Se uma mídia de instalação compatível for detectada**, use a etapa de extração. O suporte depende do formato e da organização da mídia; a extração não é universal.
-3. **Clique em BREAK para preparar o app.** O estado **Preparado** indica que a preparação terminou ou que um app existente foi encontrado. Não equivale a “jogável verificado”.
+3. **Clique em BREAK para preparar o app.** Para a edição Conviction identificada pelo perfil, o BTP baixa o FusionFix oficial com checksum fixo, guarda as configurações anteriores e usa Metal em janela. Outras edições precisam de validação própria.
+
+    O estado **Preparado** indica que a preparação terminou ou que um app existente foi encontrado. Não equivale a “jogável verificado”.
 4. **Abra o jogo e teste.** Verifique carregamento, imagem, áudio, teclado/controle e uma partida de pelo menos um minuto. Saia normalmente e confirme que as opções e o progresso continuam disponíveis ao reabrir.
 
 A checagem de arquivos verifica presença dos caminhos esperados. Ela não autentica cada arquivo, não garante integridade total e não é um antivírus. Tamanho de executável, sozinho, não identifica malware.

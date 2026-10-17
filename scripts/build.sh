@@ -43,7 +43,7 @@ if [[ -f "$ROOT_DIR/bin/unshield" ]]; then
 fi
 
 # Lista explícita: não copie patches, executáveis de jogos, prefixos ou saves.
-for SCRIPT in break-gtasa.sh break-codbo.sh break-codbo2.sh break-game.sh btp-peinfo.py btp-make-icon.swift install-game.sh btp-findinstalled.py; do
+for SCRIPT in break-gtasa.sh break-codbo.sh break-codbo2.sh break-game.sh btp-peinfo.py btp-make-icon.swift btp-splinter-profile.py install-game.sh btp-findinstalled.py; do
     if [[ -f "$ROOT_DIR/scripts/$SCRIPT" ]]; then
         cp "$ROOT_DIR/scripts/$SCRIPT" "$APP_STAGE/Contents/Resources/$SCRIPT"
         chmod 755 "$APP_STAGE/Contents/Resources/$SCRIPT"
