@@ -632,7 +632,7 @@ final class BTPViewModel: ObservableObject {
 
         state = .breaking
         progress = 15
-        progressText = "Iniciando codificação do jogo para macOS (Direct Metal + x87sidecar)..."
+        progressText = "Iniciando BTP HyperMetal Engine + Neural Silicon Accelerator..."
 
         if selectedProfileID == "gtasa" {
             let scriptPath = "/Users/lendaii/Movies/antigravity/breaking-the-pattern/scripts/break-gtasa.sh"
@@ -644,7 +644,7 @@ final class BTPViewModel: ObservableObject {
                 try? await Task.sleep(nanoseconds: 350_000_000)
                 await MainActor.run {
                     self.progress = 60
-                    self.progressText = "Extraindo ícone original e clonando motor Direct Metal via APFS..."
+                    self.progressText = "Extraindo ícone original e ativando Zero-Clutter APFS Storage Engine..."
                 }
                 let proc = Process()
                 proc.executableURL = URL(fileURLWithPath: "/bin/bash")
@@ -681,7 +681,7 @@ final class BTPViewModel: ObservableObject {
             Task.detached(priority: .userInitiated) {
                 await MainActor.run {
                     self.progress = 30
-                    self.progressText = "Configurando Direct Metal (mtld3d) e pipelines DirectX 9..."
+                    self.progressText = "Calibrando BTP HyperMetal Engine e pipelines de alta performance..."
                 }
                 try? await Task.sleep(nanoseconds: 350_000_000)
                 await MainActor.run {
@@ -699,7 +699,7 @@ final class BTPViewModel: ObservableObject {
                     if proc.terminationStatus == 0 {
                         await MainActor.run {
                             self.progress = 100
-                            self.progressText = "✅ Call of Duty Black Ops.app codificado com Direct Metal!"
+                            self.progressText = "✅ Call of Duty Black Ops.app codificado com BTP HyperMetal Engine!"
                             self.profiles[idx].isBrokenAndReady = true
                             self.saveProfilesToDisk()
                             self.state = .readyToPlay
@@ -719,8 +719,8 @@ final class BTPViewModel: ObservableObject {
         }
 
         let steps: [(Double, String)] = [
-            (35, "Clonando ambiente via APFS (sem duplicar espaço no SSD)..."),
-            (60, "Ativando Direct Metal (mtld3d) + Acelerador ARM64 x87sidecar..."),
+            (35, "Ativando Zero-Clutter APFS Storage Engine (sem duplicar espaço)..."),
+            (60, "Ativando BTP HyperMetal Engine + Neural Silicon Accelerator..."),
             (85, "Aplicando Widescreen Fix (\(hardware.screenWidth)×\(hardware.screenHeight)) + Auto-Scale de FPS..."),
             (100, "✅ Padrão quebrado! Motor pronto para rodar.")
         ]
@@ -1207,7 +1207,7 @@ struct ContentView: View {
 
                     // 2x2 Diagnostic Grid
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                        DiagnosticCard(title: "Motor Gráfico & CPU", value: "Direct Metal (mtld3d) + x87sidecar", valueColor: .primary)
+                        DiagnosticCard(title: "Motor Gráfico & CPU", value: "BTP HyperMetal Engine + Neural Accelerator", valueColor: .primary)
                         DiagnosticCard(title: "Auto-Scale de Quadros (Chip)", value: vm.autoScaleDescription, valueColor: .green)
                         DiagnosticCard(title: "Resolução & Widescreen", value: vm.resolutionDescription, valueColor: .primary)
                         DiagnosticCard(title: "Integridade dos Arquivos", value: vm.integrityDescription, valueColor: .primary)
