@@ -3,30 +3,6 @@ import AppKit
 import UniformTypeIdentifiers
 import Darwin
 
-// MARK: - Warm Light Beige Palette (Design System)
-struct BTPTheme {
-    // Backgrounds
-    static let windowBg = Color(red: 0.980, green: 0.970, blue: 0.950)        // #FAF7F2 (Warm Light Beige)
-    static let headerBg = Color(red: 0.960, green: 0.948, blue: 0.925)        // #F5F2EC (Warm Soft Header)
-    static let sidebarBg = Color(red: 0.945, green: 0.930, blue: 0.905)       // #F1EDE7 (Warm Sidebar Tint)
-    static let cardBg = Color(red: 1.000, green: 0.995, blue: 0.990)          // #FFFDFC (Warm Off-White Card)
-    static let cardBorder = Color(red: 0.880, green: 0.855, blue: 0.820)      // #E0DAD1 (Subtle Warm Border)
-    static let itemHover = Color(red: 0.925, green: 0.905, blue: 0.875)       // #ECE7DF
-
-    // Typography
-    static let textPrimary = Color(red: 0.160, green: 0.145, blue: 0.130)     // #292521 (Warm Espresso)
-    static let textSecondary = Color(red: 0.460, green: 0.430, blue: 0.390)   // #756E63 (Warm Slate)
-    static let textMuted = Color(red: 0.620, green: 0.580, blue: 0.540)       // #9E948A
-
-    // Brand & Status Accents
-    static let accent = Color(red: 0.860, green: 0.540, blue: 0.140)          // #DB8A24 (Golden Amber / Lightning)
-    static let accentHover = Color(red: 0.760, green: 0.460, blue: 0.100)     // #C2751A
-    static let playGreen = Color(red: 0.180, green: 0.650, blue: 0.380)       // #2EA661 (Emerald Play)
-    static let paypalBlue = Color(red: 0.000, green: 0.380, blue: 0.680)      // #0061AE (PayPal Developer)
-    static let dangerRed = Color(red: 0.820, green: 0.220, blue: 0.220)       // #D13838
-    static let alertOrange = Color(red: 0.880, green: 0.460, blue: 0.120)     // #E0751F
-}
-
 // MARK: - Hardware Detector (Apple Silicon & Display Auto-Scale)
 struct HardwareInfo {
     let chipName: String
@@ -79,7 +55,7 @@ struct GameProfile: Identifiable, Equatable, Codable {
     let title: String
     let executable: String
     let requiredFolders: [String]
-    let physicsCapFPS: Int? // nil = safe to unlock to monitor Hz / 120+ FPS; 60 = physics tied to 60 FPS
+    let physicsCapFPS: Int?
     var folderPath: String?
     var isBrokenAndReady: Bool
 }
@@ -103,19 +79,19 @@ let knownPresets: [GamePreset] = [
         physicsCapFPS: 60
     ),
     GamePreset(
-        id: "codbo",
-        icon: "🎖️",
-        title: "Call of Duty: Black Ops",
-        executable: "BlackOps.exe",
-        requiredFolders: ["main", "zone"],
-        physicsCapFPS: nil
-    ),
-    GamePreset(
         id: "nfsu2",
         icon: "🏎️",
         title: "Need for Speed Underground 2",
         executable: "SPEED2.EXE",
         requiredFolders: ["CARS", "TRACKS", "GLOBAL", "SOUND"],
+        physicsCapFPS: nil
+    ),
+    GamePreset(
+        id: "codbo",
+        icon: "🎖️",
+        title: "Call of Duty: Black Ops",
+        executable: "BlackOps.exe",
+        requiredFolders: ["main", "zone"],
         physicsCapFPS: nil
     ),
     GamePreset(
@@ -173,30 +149,63 @@ final class BTPViewModel: ObservableObject {
            let saved = try? JSONDecoder().decode([GameProfile].self, from: data) {
             self.profiles = saved
         } else {
-            // Fresh public installation: starts with an empty library by default!
-            // ("pro publico final vai sem o jogo instalado")
-            var initial: [GameProfile] = []
-
-            // If developer already broke GTA SA locally, detect and register it once
-            let devGTASAApp = fm.homeDirectoryForCurrentUser
-                .appendingPathComponent("Applications/Grand Theft Auto San Andreas.app")
-            let devGTASAFolder = appSupportURL.appendingPathComponent("Games/GTA San Andreas")
-            if fm.fileExists(atPath: devGTASAApp.path) && fm.fileExists(atPath: devGTASAFolder.appendingPathComponent("gta_sa.exe").path) {
-                initial.append(GameProfile(
-                    id: "gtasa",
-                    icon: "🔫",
-                    title: "Grand Theft Auto: San Andreas",
-                    executable: "gta_sa.exe",
-                    requiredFolders: ["anim", "audio", "data", "models"],
-                    physicsCapFPS: 60,
-                    folderPath: devGTASAFolder.path,
-                    isBrokenAndReady: true
-                ))
-            }
-
-            self.profiles = initial
-            saveProfilesToDisk()
+            self.profiles = []
         }
+
+        // Auto-discover already broken/installed games on this Mac
+        let knownAutos: [(String, String, String, String, [String], Int?, String, String)] = [
+            (
+                "gtasa",
+                "🔫",
+                "Grand Theft Auto: San Andreas",
+                "gta_sa.exe",
+                ["anim", "audio", "data", "models"],
+                60,
+                "Applications/Grand Theft Auto San Andreas.app",
+                "Library/Application Support/Breaking the Pattern/Games/GTA San Andreas"
+            ),
+            (
+                "nfsu2",
+                "🏎️",
+                "Need for Speed Underground 2",
+                "SPEED2.EXE",
+                ["CARS", "TRACKS", "GLOBAL", "SOUND"],
+                nil,
+                "Applications/Need for Speed Underground 2.app",
+                "Library/Application Support/Need for Speed Underground 2/Game"
+            ),
+            (
+                "codbo",
+                "🎖️",
+                "Call of Duty: Black Ops",
+                "BlackOps.exe",
+                ["main", "zone"],
+                nil,
+                "Applications/Call of Duty Black Ops.app",
+                "Library/Application Support/Call of Duty Black Ops/prefix-metal/drive_c/Games/BlackOps"
+            )
+        ]
+
+        for (id, icon, title, exe, reqs, cap, appRel, folderRel) in knownAutos {
+            let appURL = fm.homeDirectoryForCurrentUser.appendingPathComponent(appRel)
+            let folderURL = fm.homeDirectoryForCurrentUser.appendingPathComponent(folderRel)
+            if fm.fileExists(atPath: appURL.path) && fm.fileExists(atPath: folderURL.path) {
+                if !self.profiles.contains(where: { $0.id == id }) {
+                    self.profiles.append(GameProfile(
+                        id: id,
+                        icon: icon,
+                        title: title,
+                        executable: exe,
+                        requiredFolders: reqs,
+                        physicsCapFPS: cap,
+                        folderPath: folderURL.path,
+                        isBrokenAndReady: true
+                    ))
+                }
+            }
+        }
+
+        saveProfilesToDisk()
 
         if let first = profiles.first {
             selectProfile(first.id)
@@ -214,6 +223,54 @@ final class BTPViewModel: ObservableObject {
         if let data = try? encoder.encode(profiles) {
             try? data.write(to: libraryFileURL, options: .atomic)
         }
+    }
+
+    func iconImage(for profile: GameProfile) -> NSImage? {
+        let fm = FileManager.default
+        let home = fm.homeDirectoryForCurrentUser
+
+        let appNames: [String] = {
+            switch profile.id {
+            case "gtasa": return ["Grand Theft Auto San Andreas.app"]
+            case "nfsu2": return ["Need for Speed Underground 2.app"]
+            case "codbo": return ["Call of Duty Black Ops.app"]
+            case "nfsmw": return ["Need for Speed Most Wanted.app"]
+            default: return ["\(profile.title).app"]
+            }
+        }()
+
+        for name in appNames {
+            let appURL = home.appendingPathComponent("Applications/\(name)")
+            if fm.fileExists(atPath: appURL.path) {
+                let icnsURL = appURL.appendingPathComponent("Contents/Resources/GameIcon.icns")
+                if fm.fileExists(atPath: icnsURL.path), let img = NSImage(contentsOf: icnsURL) {
+                    return img
+                }
+                let fullIcns = appURL.appendingPathComponent("Contents/Resources/GameIconFull.icns")
+                if fm.fileExists(atPath: fullIcns.path), let img = NSImage(contentsOf: fullIcns) {
+                    return img
+                }
+                let img = NSWorkspace.shared.icon(forFile: appURL.path)
+                img.size = NSSize(width: 128, height: 128)
+                return img
+            }
+        }
+
+        if let folder = profile.folderPath {
+            let folderURL = URL(fileURLWithPath: folder)
+            let candidates = [
+                folderURL.appendingPathComponent("data/Icons/app.ico"),
+                folderURL.appendingPathComponent("icon.ico"),
+                folderURL.appendingPathComponent("GameIcon.icns")
+            ]
+            for c in candidates {
+                if fm.fileExists(atPath: c.path), let img = NSImage(contentsOf: c) {
+                    return img
+                }
+            }
+        }
+
+        return nil
     }
 
     var currentProfile: GameProfile? {
@@ -395,7 +452,6 @@ final class BTPViewModel: ObservableObject {
         let contents = (try? fm.contentsOfDirectory(atPath: url.path)) ?? []
         let lowerMap = Dictionary(uniqueKeysWithValues: contents.map { ($0.lowercased(), $0) })
 
-        // Heuristic Security Scanner: Detect fake padded .NET droppers (>60MB .exe or CLR_UEF header)
         for item in contents where item.lowercased().hasSuffix(".exe") {
             let exeURL = url.appendingPathComponent(item)
             let attrs = try? fm.attributesOfItem(atPath: exeURL.path)
@@ -420,7 +476,6 @@ final class BTPViewModel: ObservableObject {
             return
         }
 
-        // Detect Windows InstallShield DVD Installer (setup.exe + data1.cab + data1.hdr)
         if lowerMap[p.executable.lowercased()] == nil,
            let cabName = lowerMap["data1.cab"],
            lowerMap["data1.hdr"] != nil {
@@ -435,7 +490,6 @@ final class BTPViewModel: ObservableObject {
 
         var missing: [String] = []
         if lowerMap[p.executable.lowercased()] == nil {
-            // For Call of Duty Black Ops, check if singleplayer or multiplayer exe is present
             if p.id == "codbo" && (lowerMap["blackops.exe"] != nil || lowerMap["blackopsmp.exe"] != nil) {
                 // present
             } else {
@@ -730,7 +784,7 @@ final class BTPViewModel: ObservableObject {
     }
 }
 
-// MARK: - SwiftUI Interface (Warm Light Beige Palette)
+// MARK: - SwiftUI Interface (Original Sleek Dark Layout with Real Game Icons)
 struct ContentView: View {
     @StateObject private var vm = BTPViewModel()
 
@@ -744,33 +798,32 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header Bar
+            // Top Header Bar
             HStack {
                 HStack(spacing: 8) {
                     if let nsImg = headerIconImage {
                         Image(nsImage: nsImg)
                             .resizable()
                             .interpolation(.high)
-                            .frame(width: 28, height: 28)
+                            .frame(width: 26, height: 26)
                             .clipShape(RoundedRectangle(cornerRadius: 6))
                     } else {
                         Text("⚡")
                             .font(.system(size: 16))
                     }
                     Text("BREAKING THE PATTERN")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(BTPTheme.textPrimary)
+                        .font(.system(size: 14, weight: .bold))
                     Text("v0.1.0")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(BTPTheme.textMuted)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
                 }
 
                 Spacer()
 
                 HStack(spacing: 8) {
-                    Text("Chip:")
+                    Text("Chip detectado:")
                         .font(.system(size: 12))
-                        .foregroundStyle(BTPTheme.textSecondary)
+                        .foregroundStyle(.secondary)
                     Picker("", selection: $vm.selectedChipOverride) {
                         Text("\(vm.hardware.chipName) • \(vm.hardware.screenWidth)×\(vm.hardware.screenHeight) @ \(vm.hardware.refreshRate)Hz").tag("auto")
                         Text("Simular: Apple M5 Pro (155Hz)").tag("m5pro")
@@ -778,33 +831,32 @@ struct ContentView: View {
                         Text("Simular: MacBook Air M1 (60Hz)").tag("m1air")
                     }
                     .labelsHidden()
-                    .frame(width: 275)
+                    .frame(width: 280)
                     .controlSize(.small)
                 }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
-            .background(BTPTheme.headerBg)
+            .background(Color(nsColor: .windowBackgroundColor))
 
             Divider()
-                .background(BTPTheme.cardBorder)
 
-            // Main Split
+            // Main 2-Column Split
             HStack(spacing: 0) {
                 // Left Sidebar
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
                         Text("JOGOS INSTALADOS")
                             .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(BTPTheme.textSecondary)
+                            .foregroundStyle(.secondary)
                         Spacer()
                         if !vm.profiles.isEmpty {
                             Text("\(vm.profiles.count)")
                                 .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(BTPTheme.textPrimary)
+                                .foregroundStyle(.secondary)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
-                                .background(BTPTheme.cardBg)
+                                .background(Color(nsColor: .controlBackgroundColor))
                                 .clipShape(Capsule())
                         }
                     }
@@ -812,26 +864,26 @@ struct ContentView: View {
 
                     if vm.profiles.isEmpty {
                         VStack(spacing: 8) {
-                            Spacer().frame(height: 14)
+                            Spacer().frame(height: 12)
                             Image(systemName: "gamecontroller")
-                                .font(.system(size: 30))
-                                .foregroundStyle(BTPTheme.textMuted)
+                                .font(.system(size: 28))
+                                .foregroundStyle(.secondary.opacity(0.4))
                             Text("Nenhum jogo instalado")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(BTPTheme.textPrimary)
-                            Text("Arraste uma pasta aqui ou clique abaixo para adicionar.")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                            Text("Arraste uma pasta aqui ou clique abaixo para instalar.")
                                 .font(.system(size: 10))
-                                .foregroundStyle(BTPTheme.textSecondary)
+                                .foregroundStyle(.secondary.opacity(0.7))
                                 .multilineTextAlignment(.center)
-                                .padding(.horizontal, 6)
-                            Spacer().frame(height: 14)
+                                .padding(.horizontal, 4)
+                            Spacer().frame(height: 12)
                         }
                         .frame(maxWidth: .infinity)
                         .padding(8)
                         .background(
                             RoundedRectangle(cornerRadius: 8)
                                 .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4]))
-                                .foregroundStyle(BTPTheme.cardBorder)
+                                .foregroundStyle(Color.primary.opacity(0.12))
                         )
                     } else {
                         ScrollView(showsIndicators: false) {
@@ -841,23 +893,35 @@ struct ContentView: View {
                                         Button {
                                             vm.selectProfile(profile.id)
                                         } label: {
-                                            HStack {
+                                            HStack(spacing: 8) {
+                                                if let img = vm.iconImage(for: profile) {
+                                                    Image(nsImage: img)
+                                                        .resizable()
+                                                        .interpolation(.high)
+                                                        .scaledToFit()
+                                                        .frame(width: 26, height: 26)
+                                                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                                                        .shadow(color: .black.opacity(0.4), radius: 2, x: 0, y: 1)
+                                                } else {
+                                                    Text(profile.icon)
+                                                        .font(.system(size: 18))
+                                                }
+
                                                 VStack(alignment: .leading, spacing: 2) {
-                                                    Text("\(profile.icon) \(profile.title)")
+                                                    Text(profile.title)
                                                         .font(.system(size: 12, weight: .semibold))
-                                                        .foregroundStyle(BTPTheme.textPrimary)
+                                                        .foregroundStyle(.primary)
                                                         .lineLimit(1)
                                                     Text("Executável (\(profile.executable))")
                                                         .font(.system(size: 10))
-                                                        .foregroundStyle(BTPTheme.textSecondary)
+                                                        .foregroundStyle(.secondary)
                                                 }
                                                 Spacer()
                                                 Text(profile.isBrokenAndReady ? "Pronto ✅" : "Configurar")
                                                     .font(.system(size: 10, weight: .medium))
-                                                    .foregroundStyle(profile.isBrokenAndReady ? BTPTheme.playGreen : BTPTheme.accent)
                                                     .padding(.horizontal, 6)
                                                     .padding(.vertical, 3)
-                                                    .background(BTPTheme.cardBg)
+                                                    .background(Color(nsColor: .controlBackgroundColor))
                                                     .clipShape(RoundedRectangle(cornerRadius: 5))
                                             }
                                         }
@@ -868,7 +932,7 @@ struct ContentView: View {
                                         } label: {
                                             Image(systemName: "trash")
                                                 .font(.system(size: 11))
-                                                .foregroundStyle(BTPTheme.textMuted)
+                                                .foregroundStyle(.secondary.opacity(0.6))
                                         }
                                         .buttonStyle(.plain)
                                         .help("Remover da lista")
@@ -877,14 +941,14 @@ struct ContentView: View {
                                     .background(
                                         RoundedRectangle(cornerRadius: 8)
                                             .fill(vm.selectedProfileID == profile.id
-                                                  ? BTPTheme.accent.opacity(0.14)
-                                                  : BTPTheme.cardBg)
+                                                  ? Color.accentColor.opacity(0.16)
+                                                  : Color(nsColor: .controlBackgroundColor))
                                     )
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 8)
                                             .stroke(vm.selectedProfileID == profile.id
-                                                    ? BTPTheme.accent.opacity(0.55)
-                                                    : BTPTheme.cardBorder, lineWidth: 1)
+                                                    ? Color.accentColor.opacity(0.6)
+                                                    : Color.primary.opacity(0.08), lineWidth: 1)
                                     )
                                 }
                             }
@@ -896,18 +960,12 @@ struct ContentView: View {
                     } label: {
                         HStack {
                             Image(systemName: "folder.badge.plus")
-                                .foregroundStyle(BTPTheme.accent)
                             Text("Instalar Novo Jogo...")
                                 .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(BTPTheme.textPrimary)
                             Spacer()
                         }
                         .padding(9)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4]))
-                                .foregroundStyle(BTPTheme.cardBorder)
-                        )
+                        .background(RoundedRectangle(cornerRadius: 8).strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4])))
                     }
                     .buttonStyle(.plain)
                     .padding(.top, 2)
@@ -915,77 +973,65 @@ struct ContentView: View {
                     Spacer()
 
                     Divider()
-                        .background(BTPTheme.cardBorder)
 
                     HStack {
-                        Text("HUD de FPS:")
+                        Text("HUD de FPS no jogo:")
                             .font(.system(size: 11))
-                            .foregroundStyle(BTPTheme.textSecondary)
+                            .foregroundStyle(.secondary)
                         Spacer()
                         Text("Tecla 0")
                             .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(BTPTheme.textPrimary)
                             .padding(.horizontal, 8)
-                            .padding(.vertical, 2)
-                            .background(BTPTheme.cardBg)
-                            .overlay(RoundedRectangle(cornerRadius: 5).stroke(BTPTheme.cardBorder, lineWidth: 1))
+                            .padding(.vertical, 3)
+                            .background(Color(nsColor: .controlBackgroundColor))
+                            .overlay(RoundedRectangle(cornerRadius: 5).stroke(Color.primary.opacity(0.15)))
                             .clipShape(RoundedRectangle(cornerRadius: 5))
                     }
 
-                    // Sleek Developer & Donation Links (PayPal + GitHub)
-                    VStack(spacing: 6) {
-                        HStack(spacing: 6) {
-                            Button {
-                                if let url = URL(string: "https://www.paypal.com/donate/?business=uildsonaraujo@gmail.com&currency_code=BRL") {
-                                    NSWorkspace.shared.open(url)
-                                }
-                            } label: {
-                                HStack(spacing: 4) {
-                                    Text("☕")
-                                    Text("Doar via PayPal")
-                                        .font(.system(size: 11, weight: .semibold))
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 5)
-                                .background(BTPTheme.cardBg)
-                                .foregroundStyle(BTPTheme.paypalBlue)
-                                .overlay(RoundedRectangle(cornerRadius: 6).stroke(BTPTheme.paypalBlue.opacity(0.35), lineWidth: 1))
-                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                    // Sleek Native PayPal & GitHub links
+                    HStack(spacing: 6) {
+                        Button {
+                            if let url = URL(string: "https://www.paypal.com/donate/?business=uildsonaraujo@gmail.com&currency_code=BRL") {
+                                NSWorkspace.shared.open(url)
                             }
-                            .buttonStyle(.plain)
-
-                            Button {
-                                if let url = URL(string: "https://github.com/WennyLife/breaking-the-pattern") {
-                                    NSWorkspace.shared.open(url)
-                                }
-                            } label: {
-                                HStack(spacing: 4) {
-                                    Text("⭐")
-                                    Text("GitHub")
-                                        .font(.system(size: 11, weight: .semibold))
-                                }
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 5)
-                                .background(BTPTheme.cardBg)
-                                .foregroundStyle(BTPTheme.textPrimary)
-                                .overlay(RoundedRectangle(cornerRadius: 6).stroke(BTPTheme.cardBorder, lineWidth: 1))
-                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text("☕")
+                                Text("Doar PayPal")
+                                    .font(.system(size: 11, weight: .medium))
                             }
-                            .buttonStyle(.plain)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 4)
+                            .background(Color(nsColor: .controlBackgroundColor))
+                            .overlay(RoundedRectangle(cornerRadius: 5).stroke(Color.primary.opacity(0.15)))
+                            .clipShape(RoundedRectangle(cornerRadius: 5))
                         }
+                        .buttonStyle(.plain)
 
-                        Text("Open Source (MIT) • WennyLife")
-                            .font(.system(size: 9))
-                            .foregroundStyle(BTPTheme.textMuted)
+                        Button {
+                            if let url = URL(string: "https://github.com/WennyLife/breaking-the-pattern") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text("⭐")
+                                Text("GitHub")
+                                    .font(.system(size: 11, weight: .medium))
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color(nsColor: .controlBackgroundColor))
+                            .overlay(RoundedRectangle(cornerRadius: 5).stroke(Color.primary.opacity(0.15)))
+                            .clipShape(RoundedRectangle(cornerRadius: 5))
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .padding(.top, 4)
                 }
                 .padding(14)
                 .frame(width: 255)
-                .background(BTPTheme.sidebarBg)
+                .background(Color(nsColor: .underPageBackgroundColor).opacity(0.5))
 
                 Divider()
-                    .background(BTPTheme.cardBorder)
 
                 // Right Workspace Area
                 VStack(alignment: .leading, spacing: 14) {
@@ -993,38 +1039,47 @@ struct ContentView: View {
                     ZStack {
                         RoundedRectangle(cornerRadius: 12)
                             .strokeBorder(
-                                vm.isDropTargeted ? BTPTheme.accent : BTPTheme.cardBorder,
+                                vm.isDropTargeted ? Color.accentColor : Color.primary.opacity(0.22),
                                 style: StrokeStyle(lineWidth: 2, dash: [6])
                             )
                             .background(
                                 RoundedRectangle(cornerRadius: 12)
-                                    .fill(BTPTheme.cardBg)
+                                    .fill(Color(nsColor: .controlBackgroundColor))
                             )
 
                         if let profile = vm.currentProfile, let path = profile.folderPath {
-                            HStack(spacing: 12) {
-                                Text(profile.icon)
-                                    .font(.system(size: 26))
-                                    .frame(width: 44, height: 44)
-                                    .background(BTPTheme.windowBg)
-                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                            HStack(spacing: 14) {
+                                if let img = vm.iconImage(for: profile) {
+                                    Image(nsImage: img)
+                                        .resizable()
+                                        .interpolation(.high)
+                                        .scaledToFit()
+                                        .frame(width: 48, height: 48)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                        .shadow(color: .black.opacity(0.4), radius: 3, x: 0, y: 1)
+                                } else {
+                                    Text(profile.icon)
+                                        .font(.system(size: 26))
+                                        .frame(width: 44, height: 44)
+                                        .background(Color(nsColor: .windowBackgroundColor))
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                }
 
                                 VStack(alignment: .leading, spacing: 3) {
                                     HStack(spacing: 8) {
                                         Text(profile.title)
                                             .font(.system(size: 14, weight: .bold))
-                                            .foregroundStyle(BTPTheme.textPrimary)
                                         Text(profile.executable)
                                             .font(.system(size: 11, design: .monospaced))
                                             .padding(.horizontal, 6)
                                             .padding(.vertical, 2)
-                                            .background(BTPTheme.windowBg)
+                                            .background(Color(nsColor: .windowBackgroundColor))
                                             .clipShape(RoundedRectangle(cornerRadius: 4))
-                                            .foregroundStyle(BTPTheme.textSecondary)
+                                            .foregroundStyle(.secondary)
                                     }
                                     Text(path)
                                         .font(.system(size: 11, design: .monospaced))
-                                        .foregroundStyle(BTPTheme.textSecondary)
+                                        .foregroundStyle(.secondary)
                                         .lineLimit(1)
                                         .truncationMode(.middle)
                                 }
@@ -1039,14 +1094,22 @@ struct ContentView: View {
                             .padding(.horizontal, 16)
                         } else if let profile = vm.currentProfile {
                             VStack(spacing: 6) {
-                                Text(profile.icon)
-                                    .font(.system(size: 26))
+                                if let img = vm.iconImage(for: profile) {
+                                    Image(nsImage: img)
+                                        .resizable()
+                                        .interpolation(.high)
+                                        .scaledToFit()
+                                        .frame(width: 36, height: 36)
+                                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                                } else {
+                                    Text(profile.icon)
+                                        .font(.system(size: 26))
+                                }
                                 Text("Arraste a pasta de \(profile.title) aqui")
                                     .font(.system(size: 13, weight: .semibold))
-                                    .foregroundStyle(BTPTheme.textPrimary)
-                                Text("Ou clique para selecionar no Finder (\(profile.executable))")
+                                Text("Ou clique aqui para selecionar a pasta no Finder (\(profile.executable))")
                                     .font(.system(size: 11))
-                                    .foregroundStyle(BTPTheme.textSecondary)
+                                    .foregroundStyle(.secondary)
                             }
                             .padding(14)
                         } else {
@@ -1055,10 +1118,9 @@ struct ContentView: View {
                                     .font(.system(size: 26))
                                 Text("Arraste a pasta ou instalador de qualquer jogo aqui")
                                     .font(.system(size: 13, weight: .semibold))
-                                    .foregroundStyle(BTPTheme.textPrimary)
-                                Text("Ou clique para selecionar a pasta no Finder")
+                                Text("Ou clique aqui para selecionar a pasta no Finder")
                                     .font(.system(size: 11))
-                                    .foregroundStyle(BTPTheme.textSecondary)
+                                    .foregroundStyle(.secondary)
                             }
                             .padding(14)
                         }
@@ -1087,86 +1149,81 @@ struct ContentView: View {
                             VStack(alignment: .leading, spacing: 3) {
                                 Text("Instalador de Windows Detectado (setup.exe + data1.cab)")
                                     .font(.system(size: 12, weight: .bold))
-                                    .foregroundStyle(BTPTheme.accent)
-                                Text("Você não precisa de um PC com Windows! Clique abaixo para descompactar os arquivos nativamente no macOS, montar o jogo completo e aplicar o Break.")
+                                    .foregroundStyle(.cyan)
+                                Text("Você não precisa de um PC com Windows! Clique abaixo para o Breaking the Pattern descompactar os arquivos .cab nativamente no macOS, montar o jogo completo e aplicar o Break.")
                                     .font(.system(size: 11))
-                                    .foregroundStyle(BTPTheme.textPrimary)
                             }
                             Spacer()
                         }
                         .padding(10)
-                        .background(RoundedRectangle(cornerRadius: 8).fill(BTPTheme.accent.opacity(0.12)))
-                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(BTPTheme.accent.opacity(0.4), lineWidth: 1))
+                        .background(RoundedRectangle(cornerRadius: 8).fill(Color.cyan.opacity(0.14)))
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.cyan.opacity(0.45), lineWidth: 1))
                     } else if case .errorSecurityMalware(let msg) = vm.state {
                         HStack(alignment: .top, spacing: 10) {
                             Text("🚨")
                             VStack(alignment: .leading, spacing: 3) {
                                 Text("Escudo Anti-Malware: Executável Falso / Possível Vírus Detectado")
                                     .font(.system(size: 12, weight: .bold))
-                                    .foregroundStyle(BTPTheme.dangerRed)
+                                    .foregroundStyle(.red)
                                 Text(msg)
                                     .font(.system(size: 11))
-                                    .foregroundStyle(BTPTheme.textPrimary)
                             }
                             Spacer()
                         }
                         .padding(10)
-                        .background(RoundedRectangle(cornerRadius: 8).fill(BTPTheme.dangerRed.opacity(0.12)))
-                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(BTPTheme.dangerRed.opacity(0.45), lineWidth: 1.5))
+                        .background(RoundedRectangle(cornerRadius: 8).fill(Color.red.opacity(0.18)))
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.red.opacity(0.55), lineWidth: 1.5))
                     } else if case .errorMissingFiles(let missing) = vm.state {
                         HStack(alignment: .top, spacing: 10) {
                             Text("⚠️")
                             VStack(alignment: .leading, spacing: 3) {
                                 Text("Pasta Incompleta Detectada Antes do Break")
                                     .font(.system(size: 12, weight: .bold))
-                                    .foregroundStyle(BTPTheme.dangerRed)
-                                Text("Faltam os seguintes itens obrigatórios: \(missing.joined(separator: ", ")). Selecione a pasta completa do jogo para continuar.")
+                                    .foregroundStyle(.red)
+                                Text("Faltam os seguintes itens obrigatórios na pasta: \(missing.joined(separator: ", ")). Selecione a pasta completa do jogo para continuar.")
                                     .font(.system(size: 11))
-                                    .foregroundStyle(BTPTheme.textPrimary)
                             }
                             Spacer()
                         }
                         .padding(10)
-                        .background(RoundedRectangle(cornerRadius: 8).fill(BTPTheme.dangerRed.opacity(0.10)))
-                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(BTPTheme.dangerRed.opacity(0.35), lineWidth: 1))
+                        .background(RoundedRectangle(cornerRadius: 8).fill(Color.red.opacity(0.12)))
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.red.opacity(0.35), lineWidth: 1))
                     } else if case .errorRuntime(let msg) = vm.state {
                         HStack(alignment: .top, spacing: 10) {
                             Text("🛡️")
                             VStack(alignment: .leading, spacing: 3) {
                                 Text("Aviso do Vigia de Execução")
                                     .font(.system(size: 12, weight: .bold))
-                                    .foregroundStyle(BTPTheme.alertOrange)
+                                    .foregroundStyle(.orange)
                                 Text(msg)
                                     .font(.system(size: 11))
-                                    .foregroundStyle(BTPTheme.textPrimary)
                             }
                             Spacer()
                         }
                         .padding(10)
-                        .background(RoundedRectangle(cornerRadius: 8).fill(BTPTheme.alertOrange.opacity(0.10)))
-                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(BTPTheme.alertOrange.opacity(0.35), lineWidth: 1))
+                        .background(RoundedRectangle(cornerRadius: 8).fill(Color.orange.opacity(0.12)))
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.orange.opacity(0.35), lineWidth: 1))
                     }
 
                     // 2x2 Diagnostic Grid
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                        DiagnosticCard(title: "Motor Gráfico & CPU", value: "Direct Metal (mtld3d) + x87sidecar", valueColor: BTPTheme.textPrimary)
-                        DiagnosticCard(title: "Auto-Scale de Quadros (Chip)", value: vm.autoScaleDescription, valueColor: BTPTheme.playGreen)
-                        DiagnosticCard(title: "Resolução & Widescreen", value: vm.resolutionDescription, valueColor: BTPTheme.textPrimary)
-                        DiagnosticCard(title: "Integridade dos Arquivos", value: vm.integrityDescription, valueColor: BTPTheme.textPrimary)
+                        DiagnosticCard(title: "Motor Gráfico & CPU", value: "Direct Metal (mtld3d) + x87sidecar", valueColor: .primary)
+                        DiagnosticCard(title: "Auto-Scale de Quadros (Chip)", value: vm.autoScaleDescription, valueColor: .green)
+                        DiagnosticCard(title: "Resolução & Widescreen", value: vm.resolutionDescription, valueColor: .primary)
+                        DiagnosticCard(title: "Integridade dos Arquivos", value: vm.integrityDescription, valueColor: .primary)
                     }
 
                     Spacer()
 
-                    // Progress Bar & Main Action Button
+                    // Progress Bar & Main CTA Button
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Text(vm.progressText)
                                 .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(BTPTheme.textSecondary)
+                                .foregroundStyle(.secondary)
                             Spacer()
                             Text("\(Int(vm.progress))%")
                                 .font(.system(size: 12, weight: .bold, design: .monospaced))
-                                .foregroundStyle(BTPTheme.textPrimary)
                         }
 
                         ProgressView(value: vm.progress, total: 100)
@@ -1189,10 +1246,10 @@ struct ContentView: View {
                             HStack {
                                 Spacer()
                                 Text(buttonLabel)
-                                    .font(.system(size: 13, weight: .bold))
+                                    .font(.system(size: 14, weight: .bold))
                                 Spacer()
                             }
-                            .padding(.vertical, 11)
+                            .padding(.vertical, 10)
                             .background(buttonColor)
                             .foregroundStyle(.white)
                             .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -1202,11 +1259,9 @@ struct ContentView: View {
                     }
                 }
                 .padding(18)
-                .background(BTPTheme.windowBg)
             }
         }
         .frame(width: 780, height: 470)
-        .background(BTPTheme.windowBg)
     }
 
     private var buttonLabel: String {
@@ -1223,11 +1278,11 @@ struct ContentView: View {
 
     private var buttonColor: Color {
         switch vm.state {
-        case .readyToBreak, .readyToInstallAndBreak, .breaking: return BTPTheme.accent
-        case .readyToPlay, .errorRuntime: return BTPTheme.playGreen
-        case .empty: return BTPTheme.textSecondary
-        case .errorMissingFiles: return BTPTheme.cardBorder
-        case .errorSecurityMalware: return BTPTheme.dangerRed
+        case .readyToBreak, .readyToInstallAndBreak, .breaking: return Color.accentColor
+        case .readyToPlay, .errorRuntime: return Color.green
+        case .empty: return Color.secondary
+        case .errorMissingFiles: return Color.gray.opacity(0.4)
+        case .errorSecurityMalware: return Color.red.opacity(0.75)
         }
     }
 
@@ -1248,7 +1303,7 @@ struct DiagnosticCard: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.system(size: 11))
-                .foregroundStyle(BTPTheme.textSecondary)
+                .foregroundStyle(.secondary)
             Text(value)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(valueColor)
@@ -1256,8 +1311,8 @@ struct DiagnosticCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
-        .background(BTPTheme.cardBg)
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(BTPTheme.cardBorder, lineWidth: 1))
+        .background(Color(nsColor: .controlBackgroundColor))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.primary.opacity(0.08), lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }
@@ -1272,12 +1327,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.applicationIconImage = iconImage
         }
         let contentView = ContentView()
+            .preferredColorScheme(.dark)
         window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 780, height: 470),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
         )
+        window.appearance = NSAppearance(named: .darkAqua)
         window.title = "Breaking the Pattern"
         window.center()
         window.contentView = NSHostingView(rootView: contentView)
