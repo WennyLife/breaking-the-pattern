@@ -57,7 +57,7 @@ struct GameProfile: Identifiable, Equatable, Codable {
     var requiredFolders: [String]
     var physicsCapFPS: Int?
     var folderPath: String?
-    var isBrokenAndReady: Bool
+    var isBrokenAndReady: Bool // Preparation state only; gameplay validation is separate.
 }
 
 struct GamePreset {
@@ -120,7 +120,7 @@ enum BreakState: Equatable {
     case readyToPlay
     case errorMissingFiles([String])
     case errorRuntime(String)
-    case errorSecurityMalware(String)
+    case errorSecurityMalware(String) // Legacy state identifier; no size-based malware detection.
 }
 
 struct DiscoveredGame {
@@ -177,7 +177,7 @@ final class BTPViewModel: ObservableObject {
             self.profiles = []
         }
 
-        // Auto-discover already broken/installed games on this Mac
+        // Discover prepared app bundles; their presence does not validate gameplay.
         let knownAutos: [(String, String, String, String, [String], Int?, String, String)] = [
             (
                 "gtasa",
@@ -359,29 +359,22 @@ final class BTPViewModel: ObservableObject {
         }
     }
 
+    // A suggested limit is configuration guidance, not a performance measurement.
     var autoScaleDescription: String {
-        if let p = currentProfile, let cap = p.physicsCapFPS {
-            return "\(cap) FPS Cravados (Proteção Física \(p.title))"
+        if let cap = currentProfile?.physicsCapFPS {
+            return "Limite sugerido: \(cap) FPS"
         }
-        switch selectedChipOverride {
-        case "m1air": return "60 FPS Frio & Estável (M1 Air)"
-        case "m3pro": return "120 FPS Sincronizado (M3 Pro)"
-        case "m5pro": return "120–155 FPS Liberado (M5 Pro)"
-        default:
-            if hardware.isHighEndChip && hardware.refreshRate > 60 {
-                return "120–\(hardware.refreshRate) FPS Liberado (\(hardware.chipName))"
-            }
-            return "60 FPS Estável (\(hardware.chipName))"
-        }
+        let limit = targetFPSLimitValue
+        return limit == 0 ? "Sem limite sugerido; medir no jogo" : "Limite sugerido: \(limit) FPS"
     }
 
     var resolutionDescription: String {
         switch selectedChipOverride {
-        case "m1air": return "2560 × 1600 @ 60Hz (Retina)"
-        case "m3pro": return "3024 × 1964 @ 120Hz (ProMotion)"
-        case "m5pro": return "3440 × 1440 @ 155Hz (Ultra-Wide)"
+        case "m1air": return "Referência: 2560 × 1600 @ 60Hz"
+        case "m3pro": return "Referência: 3024 × 1964 @ 120Hz"
+        case "m5pro": return "Referência: 3440 × 1440 @ 155Hz"
         default:
-            return "\(hardware.screenWidth) × \(hardware.screenHeight) @ \(hardware.refreshRate)Hz (Borderless)"
+            return "\(hardware.screenWidth) × \(hardware.screenHeight) pt · \(hardware.refreshRate)Hz"
         }
     }
 
@@ -395,11 +388,13 @@ final class BTPViewModel: ObservableObject {
         case .readyToInstallAndBreak:
             return "📦 Instalador Windows Detectado"
         case .errorSecurityMalware:
-            return "🚨 ALERTA: Executável Falso / Suspeito!"
+            return "Arquivo requer revisão"
         case .errorMissingFiles(let missing):
             return "❌ Faltando: \(missing.joined(separator: ", "))"
+        case .errorRuntime:
+            return "Revisar aviso de execução"
         default:
-            return "✅ 100% Verificado (\(p.executable))"
+            return "Itens exigidos presentes: \(p.executable)"
         }
     }
 
@@ -635,21 +630,8 @@ final class BTPViewModel: ObservableObject {
         let contents = (try? fm.contentsOfDirectory(atPath: url.path)) ?? []
         let lowerMap = Dictionary(uniqueKeysWithValues: contents.map { ($0.lowercased(), $0) })
 
-        // Heuristic Anti-Malware Scanner
-        for item in contents where item.lowercased().hasSuffix(".exe") {
-            let exeURL = url.appendingPathComponent(item)
-            let attrs = try? fm.attributesOfItem(atPath: exeURL.path)
-            let fileSize = (attrs?[.size] as? NSNumber)?.uint64Value ?? 0
-            if fileSize > 60 * 1024 * 1024 {
-                profiles[idx].isBrokenAndReady = false
-                saveProfilesToDisk()
-                let mb = fileSize / (1024 * 1024)
-                state = .errorSecurityMalware("O arquivo '\(item)' tem \(mb) MB (inflado artificialmente com Binary Padding) e não é o executável original do jogo. A execução foi bloqueada para proteger seu Mac!")
-                progress = 0
-                progressText = "🚨 Bloqueio de Segurança: Possível Vírus / Trojan detectado!"
-                return
-            }
-        }
+        // These checks establish only that expected paths are present.
+        // Executable size alone cannot establish authenticity or detect malware.
 
         if lowerMap["ivsasetup.exe"] != nil {
             profiles[idx].isBrokenAndReady = false
@@ -706,11 +688,11 @@ final class BTPViewModel: ObservableObject {
         } else if profiles[idx].isBrokenAndReady {
             state = .readyToPlay
             progress = 100
-            progressText = "✅ App nativo codificado e calibrado para \(hardware.chipName). Pronto para jogar!"
+            progressText = "✅ App preparado. Abra o jogo para testar compatibilidade e FPS."
         } else {
             state = .readyToBreak
             progress = 0
-            progressText = "⚡ Passo 2: \(profiles[idx].executable) validado! Clique em BREAK para codificar o app nativo de Mac."
+            progressText = "⚡ Passo 2: \(profiles[idx].executable) encontrado. Clique em BREAK para preparar o app."
         }
     }
 
@@ -731,7 +713,7 @@ final class BTPViewModel: ObservableObject {
 
         state = .breaking
         progress = 5
-        progressText = "Passo 1: Extraindo instalador de Windows nativamente no macOS..."
+        progressText = "Passo 1: Extraindo arquivos do instalador Windows no Mac..."
 
         let groups: [(String, Double, String)] = [
             ("GTA SA EXECUTABLE", 15, "Extraindo executável principal (gta_sa.exe) do data1.cab..."),
@@ -807,7 +789,7 @@ final class BTPViewModel: ObservableObject {
 
                 await MainActor.run {
                     self.progress = 0
-                    self.progressText = "✅ Passo 1 concluído (gta_sa.exe extraído)! Agora clique em ⚡ BREAK para codificar o app de Mac."
+                    self.progressText = "✅ gta_sa.exe extraído. Clique em ⚡ BREAK para preparar o app."
                     self.profiles[idx].folderPath = targetDir.path
                     self.profiles[idx].isBrokenAndReady = false
                     self.saveProfilesToDisk()
@@ -827,7 +809,7 @@ final class BTPViewModel: ObservableObject {
 
         state = .breaking
         progress = 15
-        progressText = "Iniciando BTP HyperMetal Engine + Neural Silicon Accelerator..."
+        progressText = "Preparando BTP HyperMetal + Neural (Metal e x87)..."
 
         if selectedProfileID == "gtasa" {
             let scriptPath = Bundle.main.path(forResource: "break-gtasa", ofType: "sh")
@@ -835,12 +817,12 @@ final class BTPViewModel: ObservableObject {
             Task.detached(priority: .userInitiated) {
                 await MainActor.run {
                     self.progress = 30
-                    self.progressText = "Desbloqueando gta_sa.exe (No-DVD v1.0 US) + WidescreenFix + SilentPatch + PT-BR..."
+                    self.progressText = "Preparando o perfil GTA SA e os componentes de compatibilidade..."
                 }
                 try? await Task.sleep(nanoseconds: 350_000_000)
                 await MainActor.run {
                     self.progress = 60
-                    self.progressText = "Extraindo ícone original e ativando Zero-Clutter APFS Storage Engine..."
+                    self.progressText = "Preparando ícone e cópias APFS, quando disponíveis..."
                 }
                 let proc = Process()
                 proc.executableURL = URL(fileURLWithPath: "/bin/bash")
@@ -857,7 +839,7 @@ final class BTPViewModel: ObservableObject {
                     if proc.terminationStatus == 0 {
                         await MainActor.run {
                             self.progress = 100
-                            self.progressText = "✅ Grand Theft Auto San Andreas.app codificado e pronto para rodar no Mac!"
+                            self.progressText = "✅ GTA San Andreas.app preparado. Teste o jogo com limite de 60 FPS."
                             self.profiles[idx].isBrokenAndReady = true
                             self.saveProfilesToDisk()
                             self.state = .readyToPlay
@@ -865,12 +847,12 @@ final class BTPViewModel: ObservableObject {
                     } else {
                         let errLog = (try? String(contentsOf: logURL, encoding: .utf8)) ?? ""
                         await MainActor.run {
-                            self.state = .errorRuntime("Erro ao codificar o pacote GTA San Andreas: \(errLog.suffix(200))")
+                            self.state = .errorRuntime("Erro ao preparar o pacote GTA San Andreas: \(errLog.suffix(200))")
                         }
                     }
                 } catch {
                     await MainActor.run {
-                        self.state = .errorRuntime("Falha ao executar codificador: \(error.localizedDescription)")
+                        self.state = .errorRuntime("Falha ao executar preparação: \(error.localizedDescription)")
                     }
                 }
             }
@@ -883,12 +865,12 @@ final class BTPViewModel: ObservableObject {
             Task.detached(priority: .userInitiated) {
                 await MainActor.run {
                     self.progress = 30
-                    self.progressText = "Calibrando BTP HyperMetal Engine e pipelines de alta performance..."
+                    self.progressText = "Configurando o perfil BTP HyperMetal para teste..."
                 }
                 try? await Task.sleep(nanoseconds: 350_000_000)
                 await MainActor.run {
                     self.progress = 65
-                    self.progressText = "Gerando pacote nativo Call of Duty Black Ops II.app..."
+                    self.progressText = "Preparando Call of Duty Black Ops II.app..."
                 }
                 let proc = Process()
                 proc.executableURL = URL(fileURLWithPath: "/bin/bash")
@@ -905,7 +887,7 @@ final class BTPViewModel: ObservableObject {
                     if proc.terminationStatus == 0 {
                         await MainActor.run {
                             self.progress = 100
-                            self.progressText = "✅ Call of Duty Black Ops II.app codificado com BTP HyperMetal Engine!"
+                            self.progressText = "✅ Black Ops II.app preparado. Jogabilidade ainda precisa de teste."
                             self.profiles[idx].isBrokenAndReady = true
                             self.saveProfilesToDisk()
                             self.state = .readyToPlay
@@ -913,12 +895,12 @@ final class BTPViewModel: ObservableObject {
                     } else {
                         let errLog = (try? String(contentsOf: logURL, encoding: .utf8)) ?? ""
                         await MainActor.run {
-                            self.state = .errorRuntime("Erro ao codificar Call of Duty: Black Ops II: \(errLog.suffix(200))")
+                            self.state = .errorRuntime("Erro ao preparar Call of Duty: Black Ops II: \(errLog.suffix(200))")
                         }
                     }
                 } catch {
                     await MainActor.run {
-                        self.state = .errorRuntime("Falha ao executar codificador: \(error.localizedDescription)")
+                        self.state = .errorRuntime("Falha ao executar preparação: \(error.localizedDescription)")
                     }
                 }
             }
@@ -931,12 +913,12 @@ final class BTPViewModel: ObservableObject {
             Task.detached(priority: .userInitiated) {
                 await MainActor.run {
                     self.progress = 30
-                    self.progressText = "Calibrando BTP HyperMetal Engine e pipelines de alta performance..."
+                    self.progressText = "Configurando o perfil BTP HyperMetal para teste..."
                 }
                 try? await Task.sleep(nanoseconds: 350_000_000)
                 await MainActor.run {
                     self.progress = 65
-                    self.progressText = "Gerando pacote nativo Call of Duty Black Ops.app..."
+                    self.progressText = "Preparando Call of Duty Black Ops.app..."
                 }
                 let proc = Process()
                 proc.executableURL = URL(fileURLWithPath: "/bin/bash")
@@ -953,7 +935,7 @@ final class BTPViewModel: ObservableObject {
                     if proc.terminationStatus == 0 {
                         await MainActor.run {
                             self.progress = 100
-                            self.progressText = "✅ Call of Duty Black Ops.app codificado com BTP HyperMetal Engine!"
+                            self.progressText = "✅ Black Ops.app preparado. Jogabilidade ainda precisa de teste."
                             self.profiles[idx].isBrokenAndReady = true
                             self.saveProfilesToDisk()
                             self.state = .readyToPlay
@@ -961,12 +943,12 @@ final class BTPViewModel: ObservableObject {
                     } else {
                         let errLog = (try? String(contentsOf: logURL, encoding: .utf8)) ?? ""
                         await MainActor.run {
-                            self.state = .errorRuntime("Erro ao codificar Call of Duty: Black Ops: \(errLog.suffix(200))")
+                            self.state = .errorRuntime("Erro ao preparar Call of Duty: Black Ops: \(errLog.suffix(200))")
                         }
                     }
                 } catch {
                     await MainActor.run {
-                        self.state = .errorRuntime("Falha ao executar codificador: \(error.localizedDescription)")
+                        self.state = .errorRuntime("Falha ao executar preparação: \(error.localizedDescription)")
                     }
                 }
             }
@@ -1012,7 +994,7 @@ final class BTPViewModel: ObservableObject {
                 if proc.terminationStatus == 0 {
                     await MainActor.run {
                         self.progress = 100
-                        self.progressText = "✅ \(title).app codificado com BTP HyperMetal Engine!"
+                        self.progressText = "✅ \(title).app preparado. Valide a jogabilidade ao abrir."
                         self.profiles[idx].isBrokenAndReady = true
                         self.saveProfilesToDisk()
                         self.state = .readyToPlay
@@ -1020,12 +1002,12 @@ final class BTPViewModel: ObservableObject {
                 } else {
                     let errLog = (try? String(contentsOf: logURL, encoding: .utf8)) ?? ""
                     await MainActor.run {
-                        self.state = .errorRuntime("Erro ao codificar \(title): \(errLog.suffix(300))")
+                        self.state = .errorRuntime("Erro ao preparar \(title): \(errLog.suffix(300))")
                     }
                 }
             } catch {
                 await MainActor.run {
-                    self.state = .errorRuntime("Falha ao executar codificador: \(error.localizedDescription)")
+                    self.state = .errorRuntime("Falha ao executar preparação: \(error.localizedDescription)")
                 }
             }
         }
@@ -1063,7 +1045,7 @@ final class BTPViewModel: ObservableObject {
         }
 
         let title = currentProfile?.title ?? "jogo"
-        state = .errorRuntime("O aplicativo nativo de \(title) ainda não foi codificado. Clique em BREAK primeiro.")
+        state = .errorRuntime("O aplicativo de \(title) ainda não foi preparado. Clique em BREAK primeiro.")
     }
 }
 
@@ -1096,7 +1078,7 @@ struct ContentView: View {
                     }
                     Text("BREAKING THE PATTERN")
                         .font(.system(size: 14, weight: .bold))
-                    Text("v0.1.0")
+                    Text("v0.1.1")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                 }
@@ -1129,7 +1111,7 @@ struct ContentView: View {
                 // Left Sidebar
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
-                        Text("JOGOS INSTALADOS")
+                        Text("BIBLIOTECA DE JOGOS")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(.secondary)
                         Spacer()
@@ -1200,7 +1182,7 @@ struct ContentView: View {
                                                         .foregroundStyle(.secondary)
                                                 }
                                                 Spacer()
-                                                Text(profile.isBrokenAndReady ? "Pronto ✅" : "Configurar")
+                                                Text(profile.isBrokenAndReady ? "Preparado" : "Configurar")
                                                     .font(.system(size: 10, weight: .medium))
                                                     .padding(.horizontal, 6)
                                                     .padding(.vertical, 3)
@@ -1243,7 +1225,7 @@ struct ContentView: View {
                     } label: {
                         HStack {
                             Image(systemName: "folder.badge.plus")
-                            Text("Instalar Novo Jogo...")
+                            Text("Adicionar Jogo...")
                                 .font(.system(size: 12, weight: .medium))
                             Spacer()
                         }
@@ -1262,7 +1244,7 @@ struct ContentView: View {
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
                         Spacer()
-                        Text("Tecla 0")
+                        Text("⌘ ⌥ 9")
                             .font(.system(size: 11, weight: .semibold, design: .monospaced))
                             .padding(.horizontal, 8)
                             .padding(.vertical, 3)
@@ -1399,7 +1381,7 @@ struct ContentView: View {
                             VStack(spacing: 6) {
                                 Text("📂")
                                     .font(.system(size: 26))
-                                Text("Arraste a pasta ou instalador de qualquer jogo aqui")
+                                Text("Arraste a pasta do jogo ou do instalador aqui")
                                     .font(.system(size: 13, weight: .semibold))
                                 Text("Ou clique aqui para selecionar a pasta no Finder")
                                     .font(.system(size: 11))
@@ -1433,7 +1415,7 @@ struct ContentView: View {
                                 Text("Instalador de Windows Detectado (setup.exe + data1.cab)")
                                     .font(.system(size: 12, weight: .bold))
                                     .foregroundStyle(.cyan)
-                                Text("Você não precisa de um PC com Windows! Clique abaixo para o Breaking the Pattern descompactar os arquivos nativamente no macOS, montar o jogo completo e aplicar o Break.")
+                                Text("O BTP tentará extrair os arquivos desta mídia no Mac. O suporte depende do instalador; depois, prepare o app e teste a jogabilidade.")
                                     .font(.system(size: 11))
                             }
                             Spacer()
@@ -1445,7 +1427,7 @@ struct ContentView: View {
                         HStack(alignment: .top, spacing: 10) {
                             Text("🚨")
                             VStack(alignment: .leading, spacing: 3) {
-                                Text("Escudo Anti-Malware: Executável Falso / Possível Vírus Detectado")
+                                Text("Arquivo requer revisão")
                                     .font(.system(size: 12, weight: .bold))
                                     .foregroundStyle(.red)
                                 Text(msg)
@@ -1490,10 +1472,14 @@ struct ContentView: View {
 
                     // 2x2 Diagnostic Grid
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                        DiagnosticCard(title: "Motor Gráfico & CPU", value: "BTP HyperMetal Engine + Neural Accelerator", valueColor: .primary)
-                        DiagnosticCard(title: "Auto-Scale de Quadros (Chip)", value: vm.autoScaleDescription, valueColor: .green)
-                        DiagnosticCard(title: "Resolução & Widescreen", value: vm.resolutionDescription, valueColor: .primary)
-                        DiagnosticCard(title: "Integridade dos Arquivos", value: vm.integrityDescription, valueColor: .primary)
+                        DiagnosticCard(title: "Motor Gráfico & CPU", value: "BTP HyperMetal + Neural", valueColor: .primary)
+                            .help("Rótulos BTP para componentes de compatibilidade: Wine, Rosetta, tradução gráfica para Metal e x87sidecar. Não indicam uso do Neural Engine da Apple.")
+                        DiagnosticCard(title: "Limite sugerido · FPS não medido", value: vm.autoScaleDescription, valueColor: .green)
+                            .help("Sugestão do perfil, sem garantia de desempenho ou de aplicação automática. Confirme a configuração e meça o FPS durante a partida.")
+                        DiagnosticCard(title: "Tela detectada / Referência", value: vm.resolutionDescription, valueColor: .primary)
+                            .help("A tela detectada é expressa em pontos lógicos do macOS. A resolução de renderização e a tela cheia são configuradas e verificadas no jogo.")
+                        DiagnosticCard(title: "Presença dos arquivos", value: vm.integrityDescription, valueColor: .primary)
+                            .help("Verifica a presença dos caminhos exigidos pelo perfil. Não autentica os arquivos nem realiza uma análise de malware.")
                     }
 
                     Spacer()
@@ -1548,7 +1534,7 @@ struct ContentView: View {
                                 } label: {
                                     HStack(spacing: 4) {
                                         Text("⚡")
-                                        Text("Recodificar com BTP HyperMetal Engine")
+                                        Text("Preparar novamente com BTP HyperMetal")
                                             .font(.system(size: 11, weight: .medium))
                                     }
                                     .foregroundStyle(.secondary)
@@ -1570,11 +1556,11 @@ struct ContentView: View {
         switch vm.state {
         case .empty: return "📂 SELECIONAR PASTA DO JOGO"
         case .readyToInstallAndBreak: return "📦 PASSO 1: INSTALAR JOGO NO MAC (EXTRAIR .CAB)"
-        case .readyToBreak: return "⚡ PASSO 2: BREAK (CODIFICAR APP DE MAC)"
-        case .breaking: return "⚙️ CODIFICANDO APLICATIVO NATIVO DE MAC..."
-        case .readyToPlay, .errorRuntime: return "🎮 JOGAR AGORA"
+        case .readyToBreak: return "⚡ PASSO 2: BREAK (PREPARAR APP DE MAC)"
+        case .breaking: return "⚙️ PREPARANDO APLICATIVO DE MAC..."
+        case .readyToPlay, .errorRuntime: return "🎮 ABRIR JOGO"
         case .errorMissingFiles: return "🚫 PASTA INCOMPLETA"
-        case .errorSecurityMalware: return "🚨 BLOQUEADO POR SEGURANÇA (POSSÍVEL VÍRUS)"
+        case .errorSecurityMalware: return "⚠️ REVISAR ARQUIVO"
         }
     }
 

@@ -43,8 +43,37 @@ FOLDER_ID="$(printf '%s' "$TITLE" | iconv -f UTF-8 -t ASCII//TRANSLIT 2>/dev/nul
 FOLDER_ID="${FOLDER_ID:-Game}"
 DATA_DIR="$HOME/Library/Application Support/$TITLE"
 TARGET_APP="$APPS_DIR/$TITLE.app"
+# Um jogo pode ser o próprio doador (NFSU2). Resolva links antes de qualquer
+# criação/alteração para nunca substituir o runtime que ainda vamos copiar.
+python3 -I - "$TARGET_APP" "$DONOR_RESOURCES" << 'PY'
+from pathlib import Path
+import sys
+
+target, donor = (Path(value).resolve() for value in sys.argv[1:])
+if target == donor or target in donor.parents or donor in target.parents:
+    sys.exit("Destino e runtime doador se sobrepõem. O aplicativo atual foi preservado; escolha outro runtime doador.")
+PY
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/btp-break.XXXXXX")"
-trap 'rm -rf "$WORK"' EXIT
+APP_STAGE_DIR=""
+BACKUP_APP=""
+cleanup_build() {
+    local result=$?
+    # Se a troca falhar ou for interrompida após guardar a versão anterior,
+    # restaure-a. O backup nunca é apagado como parte da limpeza temporária.
+    if [[ -n "$BACKUP_APP" && ! -e "$TARGET_APP" && ! -L "$TARGET_APP" && ( -e "$BACKUP_APP" || -L "$BACKUP_APP" ) ]]; then
+        mv "$BACKUP_APP" "$TARGET_APP" || { echo "Não foi possível restaurar o app. Backup: $BACKUP_APP" >&2; result=1; }
+    fi
+    rm -rf "$WORK"
+    if [[ -n "$APP_STAGE_DIR" ]]; then rm -rf "$APP_STAGE_DIR"; fi
+    return "$result"
+}
+trap cleanup_build EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+mkdir -p "$APPS_DIR"
+# Mesmo volume do destino: a instalação final é uma renomeação do pacote pronto.
+APP_STAGE_DIR="$(mktemp -d "$APPS_DIR/.btp-build.XXXXXX")"
+APP_STAGE="$APP_STAGE_DIR/Game.app"
 
 echo "[1/5] Analisando o executável $(basename "$EXE")..."
 INFO="$(python3 -I "$SCRIPT_DIR/btp-peinfo.py" "$GAME_DIR/$EXE" --icon "$WORK/exe.ico")"
@@ -112,13 +141,23 @@ else
 fi
 if [[ -n "$WINVER" ]]; then
     # Versão do Windows só para este .exe (AppDefaults), sem mexer no resto do prefixo.
-    WINEPREFIX="$DATA_DIR/prefix-metal" WINEARCH=wow64 WINELOADERNOEXEC=1 WINEDEBUG=-all \
+    REG_LOG="$(mktemp "$DATA_DIR/Registros/config-windows-$(date +%Y%m%d-%H%M%S)-XXXXXX")"
+    if ! WINEPREFIX="$DATA_DIR/prefix-metal" WINEARCH=wow64 WINELOADERNOEXEC=1 WINEDEBUG=-all \
     WINESERVER="$DONOR_RESOURCES/wine/bin/wineserver" \
         "$DONOR_RESOURCES/GameRuntime.app/Contents/MacOS/wine" reg add \
-        "HKCU\\Software\\Wine\\AppDefaults\\$(basename "$EXE")" /v Version /t REG_SZ /d "$WINVER" /f >/dev/null 2>&1 || true
-    WINEPREFIX="$DATA_DIR/prefix-metal" "$DONOR_RESOURCES/wine/bin/wineserver" -w 2>/dev/null || true
+        "HKCU\\Software\\Wine\\AppDefaults\\$(basename "$EXE")" /v Version /t REG_SZ /d "$WINVER" /f >"$REG_LOG" 2>&1; then
+        echo "Falha ao configurar $WINVER; app atual preservado. Registro: $REG_LOG" >&2
+        exit 1
+    fi
+    if ! WINEPREFIX="$DATA_DIR/prefix-metal" "$DONOR_RESOURCES/wine/bin/wineserver" -w >>"$REG_LOG" 2>&1; then
+        echo "Falha ao concluir a configuração do Wine; app atual preservado. Registro: $REG_LOG" >&2
+        exit 1
+    fi
 fi
-cat > "$GAME_IN_PREFIX/mtld3d.conf" << 'EOF'
+[[ -f "$GAME_IN_PREFIX/$EXE" ]] || { echo "Executável não encontrado no prefixo: $GAME_IN_PREFIX/$EXE" >&2; exit 1; }
+EXE_DIR_REL="$(dirname "$EXE")"
+# O launcher usa a pasta do .exe como cwd, inclusive para executáveis aninhados.
+cat > "$GAME_IN_PREFIX/$EXE_DIR_REL/mtld3d.conf" << 'EOF'
 shader.asyncCompile = true
 depth.aliasSameSize = false
 present.maxFps = 0
@@ -128,18 +167,16 @@ query.eventImmediate = true
 EOF
 
 echo "[4/5] Montando $TITLE.app com o BTP HyperMetal Engine..."
-rm -rf "$TARGET_APP"
-mkdir -p "$TARGET_APP/Contents/MacOS" "$TARGET_APP/Contents/Resources"
-cp "$WORK/GameIcon.icns" "$TARGET_APP/Contents/Resources/GameIcon.icns"
-cp -Rc "$DONOR_RESOURCES/GameRuntime.app" "$TARGET_APP/Contents/Resources/GameRuntime.app"
-cp -Rc "$DONOR_RESOURCES/Underground 2 FPS.app" "$TARGET_APP/Contents/Resources/Underground 2 FPS.app"
-cp -f "$DONOR_RESOURCES/RuntimeBootstrap" "$TARGET_APP/Contents/Resources/RuntimeBootstrap"
-cp -f "$DONOR_RESOURCES/x87sidecar" "$TARGET_APP/Contents/Resources/x87sidecar"
-ln -sfn "GameRuntime.app/Contents/Resources/wine" "$TARGET_APP/Contents/Resources/wine"
+mkdir -p "$APP_STAGE/Contents/MacOS" "$APP_STAGE/Contents/Resources"
+cp "$WORK/GameIcon.icns" "$APP_STAGE/Contents/Resources/GameIcon.icns"
+cp -Rc "$DONOR_RESOURCES/GameRuntime.app" "$APP_STAGE/Contents/Resources/GameRuntime.app"
+cp -Rc "$DONOR_RESOURCES/Underground 2 FPS.app" "$APP_STAGE/Contents/Resources/Underground 2 FPS.app"
+cp -f "$DONOR_RESOURCES/RuntimeBootstrap" "$APP_STAGE/Contents/Resources/RuntimeBootstrap"
+cp -f "$DONOR_RESOURCES/x87sidecar" "$APP_STAGE/Contents/Resources/x87sidecar"
+ln -sfn "GameRuntime.app/Contents/Resources/wine" "$APP_STAGE/Contents/Resources/wine"
 
 # Valores escritos com %q para sobreviver a espaços, aspas e barras invertidas no launch-game.sh.
 EXE_WIN="C:\\$(printf '%s' "$GAME_REL/$EXE" | tr '/' '\\')"
-EXE_DIR_REL="$(dirname "$EXE")"
 X87_LINE=""
 [[ "$ARCH" == "i386" ]] && X87_LINE='export ROSETTA_X87_PATH="$RESOURCES/x87sidecar"'
 COMPAT=$'v=5\nname='"$SLUG"';exe='"$(basename "$EXE")"
@@ -195,10 +232,10 @@ if [[ -n "$GAME_PID" ]]; then
 fi
 wait "$BOOT_PID"
 EOF
-} > "$TARGET_APP/Contents/Resources/launch-game.sh"
-chmod 755 "$TARGET_APP/Contents/Resources/launch-game.sh"
+} > "$APP_STAGE/Contents/Resources/launch-game.sh"
+chmod 755 "$APP_STAGE/Contents/Resources/launch-game.sh"
 
-plist() { /usr/libexec/PlistBuddy -c "$1" "$TARGET_APP/Contents/Info.plist" >/dev/null; }
+plist() { /usr/libexec/PlistBuddy -c "$1" "$APP_STAGE/Contents/Info.plist" >/dev/null; }
 plist "Add :CFBundleDisplayName string $TITLE"
 plist "Add :CFBundleName string $TITLE"
 plist "Add :CFBundleExecutable string BTPGame"
@@ -216,18 +253,29 @@ plist "Add :BTPRenderer string ${RENDERER:-wined3d}"
 
 # Launcher pré-compilado pelo build.sh; se não houver, compila na hora.
 if [[ -x "$SCRIPT_DIR/BTPGameLauncher" ]]; then
-    cp "$SCRIPT_DIR/BTPGameLauncher" "$TARGET_APP/Contents/MacOS/BTPGame"
+    cp "$SCRIPT_DIR/BTPGameLauncher" "$APP_STAGE/Contents/MacOS/BTPGame"
 else
     LAUNCHER_SRC="$ROOT_DIR/src/BTPGameLauncher.swift"
     [[ -f "$LAUNCHER_SRC" ]] || LAUNCHER_SRC="$SCRIPT_DIR/BTPGameLauncher.swift"
-    xcrun swiftc -O -target arm64-apple-macos14.0 "$LAUNCHER_SRC" -o "$TARGET_APP/Contents/MacOS/BTPGame"
+    xcrun swiftc -O -target arm64-apple-macos14.0 "$LAUNCHER_SRC" -o "$APP_STAGE/Contents/MacOS/BTPGame"
 fi
-chmod 755 "$TARGET_APP/Contents/MacOS/BTPGame"
+chmod 755 "$APP_STAGE/Contents/MacOS/BTPGame"
 
 echo "[5/5] Assinando o aplicativo..."
 for ATTR in com.apple.FinderInfo com.apple.ResourceFork; do
-    xattr -r -d "$ATTR" "$TARGET_APP" 2>/dev/null || true
+    xattr -r -d "$ATTR" "$APP_STAGE" 2>/dev/null || true
 done
-codesign --force --deep --sign - "$TARGET_APP"
-codesign --verify --deep --strict "$TARGET_APP"
+plutil -lint "$APP_STAGE/Contents/Info.plist"
+bash -n "$APP_STAGE/Contents/Resources/launch-game.sh"
+codesign --force --deep --sign - "$APP_STAGE"
+codesign --verify --deep --strict "$APP_STAGE"
+
+if [[ -e "$TARGET_APP" || -L "$TARGET_APP" ]]; then
+    mkdir -p "$DATA_DIR/Backups/Apps"
+    BACKUP_DIR="$(mktemp -d "$DATA_DIR/Backups/Apps/$(date +%Y%m%d-%H%M%S)-XXXXXX")"
+    BACKUP_APP="$BACKUP_DIR/$TITLE.app"
+    mv "$TARGET_APP" "$BACKUP_APP"
+fi
+mv "$APP_STAGE" "$TARGET_APP"
+if [[ -n "$BACKUP_APP" ]]; then echo "Versão anterior preservada em: $BACKUP_APP"; fi
 echo "✅ App nativo criado com sucesso: $TARGET_APP"

@@ -21,3 +21,6 @@ mtld3d-logs/
 
 # Application Support local states
 installed_games.json
+
+# Componentes locais e arquivos de jogos: nunca publicar no projeto
+patches/gtasa/
