@@ -520,24 +520,20 @@ final class BTPViewModel: ObservableObject {
             }
         }
 
-        // 3. Fallback: Search for any valid game .exe (excluding setup, dxsetup, vcredist)
-        for dir in candidateDirs {
-            let contents = (try? fm.contentsOfDirectory(atPath: dir.path)) ?? []
-            for item in contents where item.lowercased().hasSuffix(".exe") {
-                let low = item.lowercased()
-                if !low.contains("setup") && !low.contains("install") && !low.contains("vcredist") && !low.contains("dxsetup") && !low.contains("unins") {
-                    let cleanTitle = dir.lastPathComponent.replacingOccurrences(of: "_", with: " ")
-                    let preset = GamePreset(
-                        id: dir.lastPathComponent.lowercased().replacingOccurrences(of: " ", with: "-").replacingOccurrences(of: "_", with: "-"),
-                        icon: "🎮",
-                        title: cleanTitle,
-                        executable: item,
-                        requiredFolders: [],
-                        physicsCapFPS: nil
-                    )
-                    return DiscoveredGame(rootURL: dir, matchedPreset: preset, executable: item, isInstaller: false, installerURL: nil)
-                }
-            }
+        // 3. Fallback: escolhe o .exe principal de qualquer jogo pelo ranking de candidatos.
+        //    O caminho fica relativo à pasta arrastada, para que o BREAK leve a pasta inteira
+        //    (jogos com o .exe em bin/ ou Binaries/Win32/ precisam dos dados da pasta de cima).
+        if let best = rankGameExecutables(in: url).first {
+            let cleanTitle = url.lastPathComponent.replacingOccurrences(of: "_", with: " ")
+            let preset = GamePreset(
+                id: url.lastPathComponent.lowercased().replacingOccurrences(of: " ", with: "-").replacingOccurrences(of: "_", with: "-"),
+                icon: "🎮",
+                title: cleanTitle,
+                executable: best,
+                requiredFolders: [],
+                physicsCapFPS: nil
+            )
+            return DiscoveredGame(rootURL: url, matchedPreset: preset, executable: best, isInstaller: false, installerURL: nil)
         }
 
         // 4. Default generic
@@ -551,6 +547,38 @@ final class BTPViewModel: ObservableObject {
             physicsCapFPS: nil
         )
         return DiscoveredGame(rootURL: url, matchedPreset: genericPreset, executable: "game.exe", isInstaller: false, installerURL: nil)
+    }
+
+    /// Lista os .exe da pasta (até 4 níveis), do mais provável para o menos provável de ser o jogo.
+    /// Descarta instaladores, redistribuíveis, launchers e reportadores de crash; entre os
+    /// restantes, pesa tamanho do arquivo, semelhança com o nome da pasta e profundidade.
+    func rankGameExecutables(in folder: URL) -> [String] {
+        let fm = FileManager.default
+        let root = folder.resolvingSymlinksInPath()
+        let skip = ["setup", "install", "unins", "redist", "vcredist", "vc_redist", "dxsetup", "dxwebsetup",
+                    "directx", "dotnet", "physx", "oalinst", "crash", "report", "launcher", "updater",
+                    "config", "settings", "ue4prereq", "easyanticheat", "battleye", "touchup", "cleanup"]
+        let folderWords = root.lastPathComponent.lowercased()
+            .split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init).filter { $0.count >= 3 }
+        var scored: [(String, Double)] = []
+        guard let walker = fm.enumerator(at: root, includingPropertiesForKeys: [.fileSizeKey], options: [.skipsHiddenFiles]) else {
+            return []
+        }
+        for case let file as URL in walker {
+            if walker.level > 4 { walker.skipDescendants(); continue }
+            let name = file.lastPathComponent.lowercased()
+            guard name.hasSuffix(".exe"), !skip.contains(where: { name.contains($0) }) else { continue }
+            let rel = String(file.standardizedFileURL.path.dropFirst(root.standardizedFileURL.path.count + 1))
+            let lowRel = rel.lowercased()
+            if lowRel.contains("redist") || lowRel.contains("directx") { continue }
+            let size = Double((try? file.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
+            var score = log2(max(size, 1))
+            let stem = String(name.dropLast(4))
+            if folderWords.contains(where: { stem.contains($0) || $0.contains(stem) }) { score += 6 }
+            score -= Double(walker.level - 1) * 0.5
+            scored.append((rel, score))
+        }
+        return scored.sorted { $0.1 > $1.1 }.map { $0.0 }
     }
 
     func handleDroppedFolder(_ url: URL) {
@@ -647,7 +675,7 @@ final class BTPViewModel: ObservableObject {
 
         // Check if executable is present (directly or dynamically resolved)
         var executablePresent = false
-        if lowerMap[p.executable.lowercased()] != nil {
+        if lowerMap[p.executable.lowercased()] != nil || fm.fileExists(atPath: url.appendingPathComponent(p.executable).path) {
             executablePresent = true
         } else if p.id == "codbo2" && (lowerMap["t6sp.exe"] != nil || lowerMap["t6mp.exe"] != nil) {
             executablePresent = true
@@ -946,23 +974,60 @@ final class BTPViewModel: ObservableObject {
         }
 
 
-        let steps: [(Double, String)] = [
-            (35, "Ativando Zero-Clutter APFS Storage Engine (sem duplicar espaço)..."),
-            (60, "Ativando BTP HyperMetal Engine + Neural Silicon Accelerator..."),
-            (85, "Aplicando Widescreen Fix (\(hardware.screenWidth)×\(hardware.screenHeight)) + Auto-Scale de FPS..."),
-            (100, "✅ Padrão quebrado! Motor pronto para rodar.")
-        ]
-
-        Task {
-            for (value, label) in steps {
-                try? await Task.sleep(nanoseconds: 420_000_000)
-                self.progress = value
-                self.progressText = label
+        // Qualquer outro jogo: BREAK genérico (analisa o .exe, escolhe o motor gráfico e gera o .app).
+        let scriptPath = Bundle.main.path(forResource: "break-game", ofType: "sh")
+            ?? "/Users/lendaii/Movies/antigravity/breaking-the-pattern/scripts/break-game.sh"
+        let title = profiles[idx].title
+        let executable = profiles[idx].executable
+        Task.detached(priority: .userInitiated) {
+            let proc = Process()
+            proc.executableURL = URL(fileURLWithPath: "/bin/bash")
+            proc.arguments = [scriptPath, "--title", title, "--game-dir", path, "--exe", executable]
+            let logURL = FileManager.default.temporaryDirectory.appendingPathComponent("btp_break_generic.log")
+            FileManager.default.createFile(atPath: logURL.path, contents: nil)
+            let pipe = Pipe()
+            proc.standardOutput = pipe
+            proc.standardError = pipe
+            let logHandle = try? FileHandle(forWritingTo: logURL)
+            // Cada linha "[n/5] ..." do script vira o texto e a porcentagem da barra.
+            pipe.fileHandleForReading.readabilityHandler = { handle in
+                let chunk = handle.availableData
+                guard !chunk.isEmpty else { return }
+                logHandle?.write(chunk)
+                let text = String(decoding: chunk, as: UTF8.self)
+                for line in text.split(separator: "\n") {
+                    guard line.hasPrefix("["), let slash = line.firstIndex(of: "/"),
+                          let step = Double(line[line.index(after: line.startIndex)..<slash]) else { continue }
+                    let label = line.split(separator: "]", maxSplits: 1).last.map { String($0).trimmingCharacters(in: .whitespaces) } ?? ""
+                    Task { @MainActor in
+                        self.progress = 15 + step / 5 * 80
+                        self.progressText = label
+                    }
+                }
             }
-
-            self.profiles[idx].isBrokenAndReady = true
-            self.saveProfilesToDisk()
-            self.state = .readyToPlay
+            do {
+                try proc.run()
+                proc.waitUntilExit()
+                pipe.fileHandleForReading.readabilityHandler = nil
+                if proc.terminationStatus == 0 {
+                    await MainActor.run {
+                        self.progress = 100
+                        self.progressText = "✅ \(title).app codificado com BTP HyperMetal Engine!"
+                        self.profiles[idx].isBrokenAndReady = true
+                        self.saveProfilesToDisk()
+                        self.state = .readyToPlay
+                    }
+                } else {
+                    let errLog = (try? String(contentsOf: logURL, encoding: .utf8)) ?? ""
+                    await MainActor.run {
+                        self.state = .errorRuntime("Erro ao codificar \(title): \(errLog.suffix(300))")
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    self.state = .errorRuntime("Falha ao executar codificador: \(error.localizedDescription)")
+                }
+            }
         }
     }
 
