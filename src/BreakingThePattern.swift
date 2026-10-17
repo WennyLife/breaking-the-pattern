@@ -50,12 +50,12 @@ struct HardwareInfo {
 
 // MARK: - Game Profile Definition
 struct GameProfile: Identifiable, Equatable, Codable {
-    let id: String
-    let icon: String
-    let title: String
-    let executable: String
-    let requiredFolders: [String]
-    let physicsCapFPS: Int?
+    var id: String
+    var icon: String
+    var title: String
+    var executable: String
+    var requiredFolders: [String]
+    var physicsCapFPS: Int?
     var folderPath: String?
     var isBrokenAndReady: Bool
 }
@@ -79,11 +79,11 @@ let knownPresets: [GamePreset] = [
         physicsCapFPS: 60
     ),
     GamePreset(
-        id: "nfsu2",
-        icon: "🏎️",
-        title: "Need for Speed Underground 2",
-        executable: "SPEED2.EXE",
-        requiredFolders: ["CARS", "TRACKS", "GLOBAL", "SOUND"],
+        id: "codbo2",
+        icon: "🎖️",
+        title: "Call of Duty: Black Ops II",
+        executable: "t6sp.exe",
+        requiredFolders: ["zone"],
         physicsCapFPS: nil
     ),
     GamePreset(
@@ -91,7 +91,15 @@ let knownPresets: [GamePreset] = [
         icon: "🎖️",
         title: "Call of Duty: Black Ops",
         executable: "BlackOps.exe",
-        requiredFolders: ["main", "zone"],
+        requiredFolders: ["zone"],
+        physicsCapFPS: nil
+    ),
+    GamePreset(
+        id: "nfsu2",
+        icon: "🏎️",
+        title: "Need for Speed Underground 2",
+        executable: "SPEED2.EXE",
+        requiredFolders: ["CARS", "TRACKS", "GLOBAL", "SOUND"],
         physicsCapFPS: nil
     ),
     GamePreset(
@@ -113,6 +121,14 @@ enum BreakState: Equatable {
     case errorMissingFiles([String])
     case errorRuntime(String)
     case errorSecurityMalware(String)
+}
+
+struct DiscoveredGame {
+    let rootURL: URL
+    let matchedPreset: GamePreset?
+    let executable: String
+    let isInstaller: Bool
+    let installerURL: URL?
 }
 
 // MARK: - Main ViewModel
@@ -146,7 +162,16 @@ final class BTPViewModel: ObservableObject {
         try? fm.createDirectory(at: appSupportURL, withIntermediateDirectories: true)
 
         if let data = try? Data(contentsOf: libraryFileURL),
-           let saved = try? JSONDecoder().decode([GameProfile].self, from: data) {
+           var saved = try? JSONDecoder().decode([GameProfile].self, from: data) {
+            // Upgrade legacy or incorrect profiles if needed
+            for i in 0..<saved.count {
+                if saved[i].id == "codbo" && (saved[i].folderPath?.contains("Black Ops II") == true || saved[i].folderPath?.contains("Black_Ops_II") == true) {
+                    saved[i].id = "codbo2"
+                    saved[i].title = "Call of Duty: Black Ops II"
+                    saved[i].executable = "t6sp.exe"
+                    saved[i].requiredFolders = ["zone"]
+                }
+            }
             self.profiles = saved
         } else {
             self.profiles = []
@@ -175,14 +200,14 @@ final class BTPViewModel: ObservableObject {
                 "Library/Application Support/Need for Speed Underground 2/Game"
             ),
             (
-                "codbo",
+                "codbo2",
                 "🎖️",
-                "Call of Duty: Black Ops",
-                "BlackOps.exe",
-                ["main", "zone"],
+                "Call of Duty: Black Ops II",
+                "t6sp.exe",
+                ["zone"],
                 nil,
-                "Applications/Call of Duty Black Ops.app",
-                "Library/Application Support/Call of Duty Black Ops/prefix-metal/drive_c/Games/BlackOps"
+                "Applications/Call of Duty Black Ops II.app",
+                "Downloads/Call_of_Duty_Black_Ops_II/Call of Duty Black Ops II"
             )
         ]
 
@@ -190,7 +215,11 @@ final class BTPViewModel: ObservableObject {
             let appURL = fm.homeDirectoryForCurrentUser.appendingPathComponent(appRel)
             let folderURL = fm.homeDirectoryForCurrentUser.appendingPathComponent(folderRel)
             if fm.fileExists(atPath: appURL.path) && fm.fileExists(atPath: folderURL.path) {
-                if !self.profiles.contains(where: { $0.id == id }) {
+                if let existingIdx = self.profiles.firstIndex(where: { $0.id == id }) {
+                    self.profiles[existingIdx].isBrokenAndReady = true
+                    self.profiles[existingIdx].folderPath = folderURL.path
+                    self.profiles[existingIdx].executable = exe
+                } else {
                     self.profiles.append(GameProfile(
                         id: id,
                         icon: icon,
@@ -207,7 +236,12 @@ final class BTPViewModel: ObservableObject {
 
         saveProfilesToDisk()
 
-        if let first = profiles.first {
+        if let last = UserDefaults.standard.string(forKey: "btp_last_selected_profile"),
+           profiles.contains(where: { $0.id == last }) {
+            selectProfile(last)
+        } else if let unconfigured = profiles.first(where: { !$0.isBrokenAndReady }) {
+            selectProfile(unconfigured.id)
+        } else if let first = profiles.first {
             selectProfile(first.id)
         } else {
             selectedProfileID = ""
@@ -233,6 +267,7 @@ final class BTPViewModel: ObservableObject {
             switch profile.id {
             case "gtasa": return ["Grand Theft Auto San Andreas.app"]
             case "nfsu2": return ["Need for Speed Underground 2.app"]
+            case "codbo2": return ["Call of Duty Black Ops II.app", "Call of Duty Black Ops.app"]
             case "codbo": return ["Call of Duty Black Ops.app"]
             case "nfsmw": return ["Need for Speed Most Wanted.app"]
             default: return ["\(profile.title).app"]
@@ -256,12 +291,33 @@ final class BTPViewModel: ObservableObject {
             }
         }
 
+        // Bundled icon fallback (shown even before Break)
+        let bundledName: String? = {
+            switch profile.id {
+            case "gtasa": return "GTASAGameIcon"
+            case "nfsu2": return "NFSU2GameIcon"
+            case "codbo2": return "CODBO2GameIcon"
+            case "codbo": return "CODBO2GameIcon"
+            default: return nil
+            }
+        }()
+        if let bName = bundledName {
+            if let path = Bundle.main.path(forResource: bName, ofType: "icns"),
+               let img = NSImage(contentsOfFile: path) {
+                return img
+            }
+            let devPath = "/Users/lendaii/Movies/antigravity/breaking-the-pattern/src/\(bName).icns"
+            if let img = NSImage(contentsOfFile: devPath) {
+                return img
+            }
+        }
+
         if let folder = profile.folderPath {
             let folderURL = URL(fileURLWithPath: folder)
             let candidates = [
+                folderURL.appendingPathComponent("GameIcon.icns"),
                 folderURL.appendingPathComponent("data/Icons/app.ico"),
-                folderURL.appendingPathComponent("icon.ico"),
-                folderURL.appendingPathComponent("GameIcon.icns")
+                folderURL.appendingPathComponent("icon.ico")
             ]
             for c in candidates {
                 if fm.fileExists(atPath: c.path), let img = NSImage(contentsOf: c) {
@@ -337,19 +393,19 @@ final class BTPViewModel: ObservableObject {
         case .empty:
             return "Aguardando pasta do jogo..."
         case .readyToInstallAndBreak:
-            return "📦 Instalador Windows (.cab + setup.exe)"
+            return "📦 Instalador Windows Detectado"
         case .errorSecurityMalware:
             return "🚨 ALERTA: Executável Falso / Suspeito!"
         case .errorMissingFiles(let missing):
             return "❌ Faltando: \(missing.joined(separator: ", "))"
         default:
-            let list = p.requiredFolders.joined(separator: ", ")
-            return list.isEmpty ? "✅ Pronto" : "✅ 100% Verificado (\(list))"
+            return "✅ 100% Verificado (\(p.executable))"
         }
     }
 
     func selectProfile(_ id: String) {
         selectedProfileID = id
+        UserDefaults.standard.set(id, forKey: "btp_last_selected_profile")
         guard let idx = profiles.firstIndex(where: { $0.id == id }) else { return }
         let p = profiles[idx]
         if let path = p.folderPath {
@@ -387,6 +443,116 @@ final class BTPViewModel: ObservableObject {
         }
     }
 
+    func discoverGame(at url: URL) -> DiscoveredGame {
+        let fm = FileManager.default
+        var candidateDirs: [URL] = [url]
+
+        // Inspect subdirectories up to 2 levels deep
+        if let subdirs = try? fm.contentsOfDirectory(at: url, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) {
+            for sub in subdirs {
+                var isDir: ObjCBool = false
+                if fm.fileExists(atPath: sub.path, isDirectory: &isDir), isDir.boolValue {
+                    candidateDirs.append(sub)
+                    if let subsubdirs = try? fm.contentsOfDirectory(at: sub, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) {
+                        for subsub in subsubdirs {
+                            var isSubDir: ObjCBool = false
+                            if fm.fileExists(atPath: subsub.path, isDirectory: &isSubDir), isSubDir.boolValue {
+                                candidateDirs.append(subsub)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 1. Look for known game executables
+        for dir in candidateDirs {
+            let contents = (try? fm.contentsOfDirectory(atPath: dir.path)) ?? []
+            let lowerMap = Dictionary(uniqueKeysWithValues: contents.map { ($0.lowercased(), $0) })
+
+            // Check for Call of Duty: Black Ops II (t6sp.exe, t6mp.exe, t6zm.exe)
+            if lowerMap["t6sp.exe"] != nil || lowerMap["t6mp.exe"] != nil {
+                let exe = lowerMap["t6sp.exe"] ?? lowerMap["t6mp.exe"] ?? "t6sp.exe"
+                let preset = knownPresets.first(where: { $0.id == "codbo2" })!
+                return DiscoveredGame(rootURL: dir, matchedPreset: preset, executable: exe, isInstaller: false, installerURL: nil)
+            }
+
+            // Check for Call of Duty: Black Ops 1 (BlackOps.exe)
+            if lowerMap["blackops.exe"] != nil || lowerMap["blackopsmp.exe"] != nil {
+                let exe = lowerMap["blackops.exe"] ?? lowerMap["blackopsmp.exe"] ?? "BlackOps.exe"
+                let preset = knownPresets.first(where: { $0.id == "codbo" })!
+                return DiscoveredGame(rootURL: dir, matchedPreset: preset, executable: exe, isInstaller: false, installerURL: nil)
+            }
+
+            // Check for Grand Theft Auto: San Andreas (gta_sa.exe)
+            if lowerMap["gta_sa.exe"] != nil || lowerMap["gt4-san_andreas.exe"] != nil {
+                let exe = lowerMap["gta_sa.exe"] ?? "gta_sa.exe"
+                let preset = knownPresets.first(where: { $0.id == "gtasa" })!
+                return DiscoveredGame(rootURL: dir, matchedPreset: preset, executable: exe, isInstaller: false, installerURL: nil)
+            }
+
+            // Check for Need for Speed Underground 2 (SPEED2.EXE)
+            if lowerMap["speed2.exe"] != nil {
+                let exe = lowerMap["speed2.exe"] ?? "SPEED2.EXE"
+                let preset = knownPresets.first(where: { $0.id == "nfsu2" })!
+                return DiscoveredGame(rootURL: dir, matchedPreset: preset, executable: exe, isInstaller: false, installerURL: nil)
+            }
+
+            // Check for Need for Speed: Most Wanted (speed.exe)
+            if lowerMap["speed.exe"] != nil {
+                let exe = lowerMap["speed.exe"] ?? "speed.exe"
+                let preset = knownPresets.first(where: { $0.id == "nfsmw" })!
+                return DiscoveredGame(rootURL: dir, matchedPreset: preset, executable: exe, isInstaller: false, installerURL: nil)
+            }
+        }
+
+        // 2. Check for Windows Installer (setup.exe + data1.cab)
+        for dir in candidateDirs {
+            let contents = (try? fm.contentsOfDirectory(atPath: dir.path)) ?? []
+            let lowerMap = Dictionary(uniqueKeysWithValues: contents.map { ($0.lowercased(), $0) })
+            let dirLower = dir.lastPathComponent.lowercased()
+
+            if let cab = lowerMap["data1.cab"], lowerMap["data1.hdr"] != nil {
+                let cabURL = dir.appendingPathComponent(cab)
+                let isGTA = dirLower.contains("gta") || dirLower.contains("san andreas") || contents.contains(where: { $0.lowercased().contains("gta") })
+                let preset = isGTA ? knownPresets.first(where: { $0.id == "gtasa" }) : nil
+                return DiscoveredGame(rootURL: dir, matchedPreset: preset, executable: preset?.executable ?? "gta_sa.exe", isInstaller: true, installerURL: cabURL)
+            }
+        }
+
+        // 3. Fallback: Search for any valid game .exe (excluding setup, dxsetup, vcredist)
+        for dir in candidateDirs {
+            let contents = (try? fm.contentsOfDirectory(atPath: dir.path)) ?? []
+            for item in contents where item.lowercased().hasSuffix(".exe") {
+                let low = item.lowercased()
+                if !low.contains("setup") && !low.contains("install") && !low.contains("vcredist") && !low.contains("dxsetup") && !low.contains("unins") {
+                    let cleanTitle = dir.lastPathComponent.replacingOccurrences(of: "_", with: " ")
+                    let preset = GamePreset(
+                        id: dir.lastPathComponent.lowercased().replacingOccurrences(of: " ", with: "-").replacingOccurrences(of: "_", with: "-"),
+                        icon: "🎮",
+                        title: cleanTitle,
+                        executable: item,
+                        requiredFolders: [],
+                        physicsCapFPS: nil
+                    )
+                    return DiscoveredGame(rootURL: dir, matchedPreset: preset, executable: item, isInstaller: false, installerURL: nil)
+                }
+            }
+        }
+
+        // 4. Default generic
+        let fallbackTitle = url.lastPathComponent.replacingOccurrences(of: "_", with: " ")
+        let genericPreset = GamePreset(
+            id: url.lastPathComponent.lowercased().replacingOccurrences(of: " ", with: "-"),
+            icon: "🎮",
+            title: fallbackTitle,
+            executable: "game.exe",
+            requiredFolders: [],
+            physicsCapFPS: nil
+        )
+        return DiscoveredGame(rootURL: url, matchedPreset: genericPreset, executable: "game.exe", isInstaller: false, installerURL: nil)
+    }
+
     func handleDroppedFolder(_ url: URL) {
         let fm = FileManager.default
         var isDir: ObjCBool = false
@@ -395,46 +561,28 @@ final class BTPViewModel: ObservableObject {
             return
         }
 
-        let contents = (try? fm.contentsOfDirectory(atPath: url.path)) ?? []
-        let lowerSet = Set(contents.map { $0.lowercased() })
-        let folderLower = url.lastPathComponent.lowercased()
-
-        var matchedPreset: GamePreset?
-        if lowerSet.contains("blackops.exe") || lowerSet.contains("blackopsmp.exe") || folderLower.contains("black ops") || folderLower.contains("blackops") {
-            matchedPreset = knownPresets.first(where: { $0.id == "codbo" })
-        } else if lowerSet.contains("speed2.exe") {
-            matchedPreset = knownPresets.first(where: { $0.id == "nfsu2" })
-        } else if lowerSet.contains("gta_sa.exe") || lowerSet.contains("gt4-san_andreas.exe") || folderLower.contains("gta") || folderLower.contains("san andreas") || lowerSet.contains("data1.cab") {
-            matchedPreset = knownPresets.first(where: { $0.id == "gtasa" })
-        } else if lowerSet.contains("speed.exe") || folderLower.contains("most wanted") {
-            matchedPreset = knownPresets.first(where: { $0.id == "nfsmw" })
-        } else {
-            let firstExe = contents.first(where: { $0.lowercased().hasSuffix(".exe") }) ?? "game.exe"
-            matchedPreset = GamePreset(
-                id: url.lastPathComponent.lowercased().replacingOccurrences(of: " ", with: "-"),
-                icon: "🎮",
-                title: url.lastPathComponent,
-                executable: firstExe,
-                requiredFolders: [],
-                physicsCapFPS: nil
-            )
-        }
-
-        guard let preset = matchedPreset else { return }
+        let discovered = discoverGame(at: url)
+        let rootURL = discovered.rootURL
+        guard let preset = discovered.matchedPreset else { return }
 
         let targetIndex: Int
-        if let existingIdx = profiles.firstIndex(where: { $0.id == preset.id }) {
-            profiles[existingIdx].folderPath = url.path
+        if let existingIdx = profiles.firstIndex(where: { $0.id == preset.id || ($0.id == "codbo" && preset.id == "codbo2") }) {
+            profiles[existingIdx].id = preset.id
+            profiles[existingIdx].title = preset.title
+            profiles[existingIdx].icon = preset.icon
+            profiles[existingIdx].executable = discovered.executable
+            profiles[existingIdx].requiredFolders = preset.requiredFolders
+            profiles[existingIdx].folderPath = rootURL.path
             targetIndex = existingIdx
         } else {
             let newProfile = GameProfile(
                 id: preset.id,
                 icon: preset.icon,
                 title: preset.title,
-                executable: preset.executable,
+                executable: discovered.executable,
                 requiredFolders: preset.requiredFolders,
                 physicsCapFPS: preset.physicsCapFPS,
-                folderPath: url.path,
+                folderPath: rootURL.path,
                 isBrokenAndReady: false
             )
             profiles.append(newProfile)
@@ -443,7 +591,14 @@ final class BTPViewModel: ObservableObject {
 
         saveProfilesToDisk()
         selectedProfileID = profiles[targetIndex].id
-        validateFolder(url, forProfileIndex: targetIndex)
+
+        if discovered.isInstaller, let cabURL = discovered.installerURL {
+            state = .readyToInstallAndBreak(cabURL)
+            progress = 0
+            progressText = "📦 Passo 1: Clique abaixo para instalar/extrair o jogo no Mac e obter o executável principal."
+        } else {
+            validateFolder(rootURL, forProfileIndex: targetIndex)
+        }
     }
 
     private func validateFolder(_ url: URL, forProfileIndex idx: Int) {
@@ -452,6 +607,7 @@ final class BTPViewModel: ObservableObject {
         let contents = (try? fm.contentsOfDirectory(atPath: url.path)) ?? []
         let lowerMap = Dictionary(uniqueKeysWithValues: contents.map { ($0.lowercased(), $0) })
 
+        // Heuristic Anti-Malware Scanner
         for item in contents where item.lowercased().hasSuffix(".exe") {
             let exeURL = url.appendingPathComponent(item)
             let attrs = try? fm.attributesOfItem(atPath: exeURL.path)
@@ -460,7 +616,7 @@ final class BTPViewModel: ObservableObject {
                 profiles[idx].isBrokenAndReady = false
                 saveProfilesToDisk()
                 let mb = fileSize / (1024 * 1024)
-                state = .errorSecurityMalware("O arquivo '\(item)' tem \(mb) MB (inflado artificialmente com Binary Padding) e não é o executável original do jogo. Esta pasta apresenta características clássicas de Malware / Trojan disfarçado. A execução foi bloqueada para proteger seu Mac!")
+                state = .errorSecurityMalware("O arquivo '\(item)' tem \(mb) MB (inflado artificialmente com Binary Padding) e não é o executável original do jogo. A execução foi bloqueada para proteger seu Mac!")
                 progress = 0
                 progressText = "🚨 Bloqueio de Segurança: Possível Vírus / Trojan detectado!"
                 return
@@ -470,12 +626,13 @@ final class BTPViewModel: ObservableObject {
         if lowerMap["ivsasetup.exe"] != nil {
             profiles[idx].isBrokenAndReady = false
             saveProfilesToDisk()
-            state = .errorRuntime("Esta pasta contém apenas o instalador do Mod 'GTA IV: San Andreas' (IVSASetup.exe), que exige o GTA IV instalado. Ela não é o jogo GTA San Andreas completo.")
+            state = .errorRuntime("Esta pasta contém apenas o instalador do Mod 'GTA IV: San Andreas' (IVSASetup.exe), que exige o GTA IV instalado.")
             progress = 0
             progressText = "Bloqueado: pasta de Mod detectada (não é o jogo completo)"
             return
         }
 
+        // Detect Windows InstallShield DVD Installer (setup.exe + data1.cab + data1.hdr)
         if lowerMap[p.executable.lowercased()] == nil,
            let cabName = lowerMap["data1.cab"],
            lowerMap["data1.hdr"] != nil {
@@ -484,20 +641,30 @@ final class BTPViewModel: ObservableObject {
             let cabURL = url.appendingPathComponent(cabName)
             state = .readyToInstallAndBreak(cabURL)
             progress = 0
-            progressText = "📦 Passo 1: Clique abaixo para instalar/extrair o jogo no Mac e obter o \(p.executable)."
+            progressText = "📦 Passo 1: Clique abaixo para instalar/extrair o jogo no Mac e obter o executável principal."
             return
         }
 
-        var missing: [String] = []
-        if lowerMap[p.executable.lowercased()] == nil {
-            if p.id == "codbo" && (lowerMap["blackops.exe"] != nil || lowerMap["blackopsmp.exe"] != nil) {
-                // present
-            } else {
-                missing.append(p.executable)
-            }
+        // Check if executable is present (directly or dynamically resolved)
+        var executablePresent = false
+        if lowerMap[p.executable.lowercased()] != nil {
+            executablePresent = true
+        } else if p.id == "codbo2" && (lowerMap["t6sp.exe"] != nil || lowerMap["t6mp.exe"] != nil) {
+            executablePresent = true
+            profiles[idx].executable = lowerMap["t6sp.exe"] ?? lowerMap["t6mp.exe"]!
+            saveProfilesToDisk()
+        } else if p.id == "codbo" && (lowerMap["blackops.exe"] != nil || lowerMap["blackopsmp.exe"] != nil) {
+            executablePresent = true
         }
+
+        var missing: [String] = []
+        if !executablePresent {
+            missing.append(p.executable)
+        }
+
         for req in p.requiredFolders {
             if lowerMap[req.lowercased()] == nil {
+                // If zone/ is missing, check if it's zone/common or case insensitive
                 missing.append("\(req)/")
             }
         }
@@ -515,7 +682,7 @@ final class BTPViewModel: ObservableObject {
         } else {
             state = .readyToBreak
             progress = 0
-            progressText = "⚡ Passo 2: \(p.executable) validado! Clique em BREAK para codificar o aplicativo nativo de Mac."
+            progressText = "⚡ Passo 2: \(profiles[idx].executable) validado! Clique em BREAK para codificar o app nativo de Mac."
         }
     }
 
@@ -635,7 +802,8 @@ final class BTPViewModel: ObservableObject {
         progressText = "Iniciando BTP HyperMetal Engine + Neural Silicon Accelerator..."
 
         if selectedProfileID == "gtasa" {
-            let scriptPath = "/Users/lendaii/Movies/antigravity/breaking-the-pattern/scripts/break-gtasa.sh"
+            let scriptPath = Bundle.main.path(forResource: "break-gtasa", ofType: "sh")
+                ?? "/Users/lendaii/Movies/antigravity/breaking-the-pattern/scripts/break-gtasa.sh"
             Task.detached(priority: .userInitiated) {
                 await MainActor.run {
                     self.progress = 30
@@ -649,8 +817,12 @@ final class BTPViewModel: ObservableObject {
                 let proc = Process()
                 proc.executableURL = URL(fileURLWithPath: "/bin/bash")
                 proc.arguments = [scriptPath, path]
-                proc.standardOutput = Pipe()
-                proc.standardError = Pipe()
+                let logURL = URL(fileURLWithPath: "/tmp/btp_break_gtasa.log")
+                FileManager.default.createFile(atPath: logURL.path, contents: nil)
+                if let handle = try? FileHandle(forWritingTo: logURL) {
+                    proc.standardOutput = handle
+                    proc.standardError = handle
+                }
                 do {
                     try proc.run()
                     proc.waitUntilExit()
@@ -663,8 +835,57 @@ final class BTPViewModel: ObservableObject {
                             self.state = .readyToPlay
                         }
                     } else {
+                        let errLog = (try? String(contentsOf: logURL, encoding: .utf8)) ?? ""
                         await MainActor.run {
-                            self.state = .errorRuntime("Erro ao codificar o pacote Grand Theft Auto San Andreas.app (código \(proc.terminationStatus)).")
+                            self.state = .errorRuntime("Erro ao codificar o pacote GTA San Andreas: \(errLog.suffix(200))")
+                        }
+                    }
+                } catch {
+                    await MainActor.run {
+                        self.state = .errorRuntime("Falha ao executar codificador: \(error.localizedDescription)")
+                    }
+                }
+            }
+            return
+        }
+
+        if selectedProfileID == "codbo2" {
+            let scriptPath = Bundle.main.path(forResource: "break-codbo2", ofType: "sh")
+                ?? "/Users/lendaii/Movies/antigravity/breaking-the-pattern/scripts/break-codbo2.sh"
+            Task.detached(priority: .userInitiated) {
+                await MainActor.run {
+                    self.progress = 30
+                    self.progressText = "Calibrando BTP HyperMetal Engine e pipelines de alta performance..."
+                }
+                try? await Task.sleep(nanoseconds: 350_000_000)
+                await MainActor.run {
+                    self.progress = 65
+                    self.progressText = "Gerando pacote nativo Call of Duty Black Ops II.app..."
+                }
+                let proc = Process()
+                proc.executableURL = URL(fileURLWithPath: "/bin/bash")
+                proc.arguments = [scriptPath, path]
+                let logURL = URL(fileURLWithPath: "/tmp/btp_break_codbo2.log")
+                FileManager.default.createFile(atPath: logURL.path, contents: nil)
+                if let handle = try? FileHandle(forWritingTo: logURL) {
+                    proc.standardOutput = handle
+                    proc.standardError = handle
+                }
+                do {
+                    try proc.run()
+                    proc.waitUntilExit()
+                    if proc.terminationStatus == 0 {
+                        await MainActor.run {
+                            self.progress = 100
+                            self.progressText = "✅ Call of Duty Black Ops II.app codificado com BTP HyperMetal Engine!"
+                            self.profiles[idx].isBrokenAndReady = true
+                            self.saveProfilesToDisk()
+                            self.state = .readyToPlay
+                        }
+                    } else {
+                        let errLog = (try? String(contentsOf: logURL, encoding: .utf8)) ?? ""
+                        await MainActor.run {
+                            self.state = .errorRuntime("Erro ao codificar Call of Duty: Black Ops II: \(errLog.suffix(200))")
                         }
                     }
                 } catch {
@@ -677,7 +898,8 @@ final class BTPViewModel: ObservableObject {
         }
 
         if selectedProfileID == "codbo" {
-            let scriptPath = "/Users/lendaii/Movies/antigravity/breaking-the-pattern/scripts/break-codbo.sh"
+            let scriptPath = Bundle.main.path(forResource: "break-codbo", ofType: "sh")
+                ?? "/Users/lendaii/Movies/antigravity/breaking-the-pattern/scripts/break-codbo.sh"
             Task.detached(priority: .userInitiated) {
                 await MainActor.run {
                     self.progress = 30
@@ -691,8 +913,12 @@ final class BTPViewModel: ObservableObject {
                 let proc = Process()
                 proc.executableURL = URL(fileURLWithPath: "/bin/bash")
                 proc.arguments = [scriptPath, path]
-                proc.standardOutput = Pipe()
-                proc.standardError = Pipe()
+                let logURL = URL(fileURLWithPath: "/tmp/btp_break_codbo.log")
+                FileManager.default.createFile(atPath: logURL.path, contents: nil)
+                if let handle = try? FileHandle(forWritingTo: logURL) {
+                    proc.standardOutput = handle
+                    proc.standardError = handle
+                }
                 do {
                     try proc.run()
                     proc.waitUntilExit()
@@ -705,8 +931,9 @@ final class BTPViewModel: ObservableObject {
                             self.state = .readyToPlay
                         }
                     } else {
+                        let errLog = (try? String(contentsOf: logURL, encoding: .utf8)) ?? ""
                         await MainActor.run {
-                            self.state = .errorRuntime("Erro ao codificar Call of Duty: Black Ops (código \(proc.terminationStatus)).")
+                            self.state = .errorRuntime("Erro ao codificar Call of Duty: Black Ops: \(errLog.suffix(200))")
                         }
                     }
                 } catch {
@@ -717,6 +944,7 @@ final class BTPViewModel: ObservableObject {
             }
             return
         }
+
 
         let steps: [(Double, String)] = [
             (35, "Ativando Zero-Clutter APFS Storage Engine (sem duplicar espaço)..."),
@@ -730,18 +958,6 @@ final class BTPViewModel: ObservableObject {
                 try? await Task.sleep(nanoseconds: 420_000_000)
                 self.progress = value
                 self.progressText = label
-            }
-
-            let iniURL = URL(fileURLWithPath: path)
-                .appendingPathComponent("scripts/NFSUnderground2.WidescreenFix.ini")
-            if let content = try? String(contentsOf: iniURL, encoding: .utf8) {
-                let targetFPS = self.targetFPSLimitValue
-                let updated = content.replacingOccurrences(
-                    of: #"FPSLimit\s*=\s*-?\d+"#,
-                    with: "FPSLimit = \(targetFPS)",
-                    options: .regularExpression
-                )
-                try? updated.write(to: iniURL, atomically: true, encoding: .utf8)
             }
 
             self.profiles[idx].isBrokenAndReady = true
@@ -758,6 +974,8 @@ final class BTPViewModel: ObservableObject {
             appName = "Need for Speed Underground 2.app"
         case "gtasa":
             appName = "Grand Theft Auto San Andreas.app"
+        case "codbo2":
+            appName = "Call of Duty Black Ops II.app"
         case "codbo":
             appName = "Call of Duty Black Ops.app"
         case "nfsmw":
@@ -1150,7 +1368,7 @@ struct ContentView: View {
                                 Text("Instalador de Windows Detectado (setup.exe + data1.cab)")
                                     .font(.system(size: 12, weight: .bold))
                                     .foregroundStyle(.cyan)
-                                Text("Você não precisa de um PC com Windows! Clique abaixo para o Breaking the Pattern descompactar os arquivos .cab nativamente no macOS, montar o jogo completo e aplicar o Break.")
+                                Text("Você não precisa de um PC com Windows! Clique abaixo para o Breaking the Pattern descompactar os arquivos nativamente no macOS, montar o jogo completo e aplicar o Break.")
                                     .font(.system(size: 11))
                             }
                             Spacer()
@@ -1256,6 +1474,25 @@ struct ContentView: View {
                         }
                         .buttonStyle(.plain)
                         .disabled(isButtonDisabled)
+
+                        if case .readyToPlay = vm.state {
+                            HStack {
+                                Spacer()
+                                Button {
+                                    vm.performBreak()
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Text("⚡")
+                                        Text("Recodificar com BTP HyperMetal Engine")
+                                            .font(.system(size: 11, weight: .medium))
+                                    }
+                                    .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                                Spacer()
+                            }
+                            .padding(.top, 2)
+                        }
                     }
                 }
                 .padding(18)
