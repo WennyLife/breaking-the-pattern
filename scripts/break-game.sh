@@ -16,7 +16,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DONOR_RESOURCES="${BTP_DONOR_RESOURCES:-$HOME/Applications/Need for Speed Underground 2.app/Contents/Resources}"
 APPS_DIR="${BTP_APPS_DIR:-$HOME/Applications}"
 
-TITLE="" GAME_DIR="" EXE="" ICON="" RENDERER="auto" GAME_ARGS="" OVERRIDES="dinput8=n,b;winemenubuilder.exe=" LINK=0
+TITLE="" GAME_DIR="" EXE="" ICON="" RENDERER="auto" WINVER="auto" GAME_ARGS="" OVERRIDES="dinput8=n,b;winemenubuilder.exe=" LINK=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --title) TITLE="$2"; shift 2 ;;
@@ -24,6 +24,7 @@ while [[ $# -gt 0 ]]; do
         --exe) EXE="$2"; shift 2 ;;
         --icon) ICON="$2"; shift 2 ;;
         --renderer) RENDERER="$2"; shift 2 ;;
+        --winver) WINVER="$2"; shift 2 ;;
         --args) GAME_ARGS="$2"; shift 2 ;;
         --overrides) OVERRIDES="$2"; shift 2 ;;
         --link) LINK=1; shift ;;
@@ -55,7 +56,13 @@ fi
 if [[ "$RENDERER" == "dxgi=gptk" && "$ARCH" != "x64" ]]; then
     RENDERER="dxgi=dxmt"   # o backend D3DMetal só existe em 64 bits
 fi
-echo "      Arquitetura: $ARCH | Motor gráfico: ${RENDERER:-WineD3D padrão}"
+YEAR="$(printf '%s' "$INFO" | python3 -I -c 'import json,sys; print(json.load(sys.stdin).get("year", 0))')"
+# Jogos anteriores a 2012 só conhecem até o Windows 7; alguns (ex.: Splinter Cell Conviction)
+# recusam abrir com "Operating System not supported" se o Wine se apresenta como Windows 10.
+if [[ "$WINVER" == "auto" ]]; then
+    if [[ "$YEAR" -gt 0 && "$YEAR" -lt 2012 ]]; then WINVER="win7"; else WINVER=""; fi
+fi
+echo "      Arquitetura: $ARCH | Compilado em: ${YEAR/#0/?} | Motor gráfico: ${RENDERER:-WineD3D padrão} | Windows: ${WINVER:-padrão (10)}"
 
 echo "[2/5] Gerando ícone do aplicativo..."
 ICON_SRC="$ICON"
@@ -81,8 +88,20 @@ if [[ ! -d "$DATA_DIR/prefix-metal" ]]; then
 fi
 mkdir -p "$DATA_DIR/prefix-metal/dosdevices" "$DATA_DIR/prefix-metal/drive_c/Games"
 ln -sfn "/" "$DATA_DIR/prefix-metal/dosdevices/z:"
-GAME_IN_PREFIX="$DATA_DIR/prefix-metal/drive_c/Games/$FOLDER_ID"
-if [[ "$LINK" == 1 ]]; then
+DRIVE_C="$(cd "$DATA_DIR/prefix-metal/drive_c" && pwd)"
+if [[ "$GAME_DIR" == "$DRIVE_C"/* ]]; then
+    # Jogo instalado pelo install-game.sh: já está no prefixo, roda de onde o instalador pôs
+    # (o registro do Windows aponta para lá).
+    GAME_REL="${GAME_DIR#"$DRIVE_C"/}"
+    GAME_IN_PREFIX="$GAME_DIR"
+    echo "      Jogo instalado no prefixo: C:\\$(printf '%s' "$GAME_REL" | tr '/' '\\')"
+else
+    GAME_REL="Games/$FOLDER_ID"
+    GAME_IN_PREFIX="$DRIVE_C/$GAME_REL"
+fi
+if [[ "$GAME_IN_PREFIX" == "$GAME_DIR" ]]; then
+    :
+elif [[ "$LINK" == 1 ]]; then
     ln -sfn "$GAME_DIR" "$GAME_IN_PREFIX"
 elif [[ -L "$GAME_IN_PREFIX" || ! -e "$GAME_IN_PREFIX" ]]; then
     rm -f "$GAME_IN_PREFIX"
@@ -90,6 +109,14 @@ elif [[ -L "$GAME_IN_PREFIX" || ! -e "$GAME_IN_PREFIX" ]]; then
     cp -Rc "$GAME_DIR" "$GAME_IN_PREFIX" 2>/dev/null || { rm -rf "$GAME_IN_PREFIX"; cp -R "$GAME_DIR" "$GAME_IN_PREFIX"; }
 else
     echo "      Jogo já instalado no prefixo; mantendo arquivos e saves existentes."
+fi
+if [[ -n "$WINVER" ]]; then
+    # Versão do Windows só para este .exe (AppDefaults), sem mexer no resto do prefixo.
+    WINEPREFIX="$DATA_DIR/prefix-metal" WINEARCH=wow64 WINELOADERNOEXEC=1 WINEDEBUG=-all \
+    WINESERVER="$DONOR_RESOURCES/wine/bin/wineserver" \
+        "$DONOR_RESOURCES/GameRuntime.app/Contents/MacOS/wine" reg add \
+        "HKCU\\Software\\Wine\\AppDefaults\\$(basename "$EXE")" /v Version /t REG_SZ /d "$WINVER" /f >/dev/null 2>&1 || true
+    WINEPREFIX="$DATA_DIR/prefix-metal" "$DONOR_RESOURCES/wine/bin/wineserver" -w 2>/dev/null || true
 fi
 cat > "$GAME_IN_PREFIX/mtld3d.conf" << 'EOF'
 shader.asyncCompile = true
@@ -111,7 +138,7 @@ cp -f "$DONOR_RESOURCES/x87sidecar" "$TARGET_APP/Contents/Resources/x87sidecar"
 ln -sfn "GameRuntime.app/Contents/Resources/wine" "$TARGET_APP/Contents/Resources/wine"
 
 # Valores escritos com %q para sobreviver a espaços, aspas e barras invertidas no launch-game.sh.
-EXE_WIN="C:\\Games\\$FOLDER_ID\\$(printf '%s' "$EXE" | tr '/' '\\')"
+EXE_WIN="C:\\$(printf '%s' "$GAME_REL/$EXE" | tr '/' '\\')"
 EXE_DIR_REL="$(dirname "$EXE")"
 X87_LINE=""
 [[ "$ARCH" == "i386" ]] && X87_LINE='export ROSETTA_X87_PATH="$RESOURCES/x87sidecar"'
@@ -122,7 +149,7 @@ COMPAT=$'v=5\nname='"$SLUG"';exe='"$(basename "$EXE")"
     echo 'set -eu'
     echo 'RESOURCES="$1"'
     echo 'DATA="$2"'
-    printf 'GAME_SUBDIR=%q\n' "Games/$FOLDER_ID/$EXE_DIR_REL"
+    printf 'GAME_SUBDIR=%q\n' "$GAME_REL/$EXE_DIR_REL"
     printf 'EXE_WIN=%q\n' "$EXE_WIN"
     printf 'GAME_ARGS=(%s)\n' "$GAME_ARGS"
     printf 'export WINEDLLOVERRIDES=%q\n' "$OVERRIDES"

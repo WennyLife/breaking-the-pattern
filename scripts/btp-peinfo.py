@@ -9,6 +9,7 @@ import json
 import re
 import struct
 import sys
+import time
 
 RT_ICON = 3
 RT_GROUP_ICON = 14
@@ -22,7 +23,7 @@ class PE:
         pe_off = struct.unpack_from("<I", data, 0x3C)[0]
         if data[pe_off:pe_off + 4] != b"PE\0\0":
             raise ValueError("cabeçalho PE ausente")
-        self.machine, nsect = struct.unpack_from("<HH", data, pe_off + 4)
+        self.machine, nsect, self.timestamp = struct.unpack_from("<HHI", data, pe_off + 4)
         opt_size = struct.unpack_from("<H", data, pe_off + 20)[0]
         opt = pe_off + 24
         magic = struct.unpack_from("<H", data, opt)[0]
@@ -144,8 +145,12 @@ def main():
     arch = {0x14C: "i386", 0x8664: "x64", 0xAA64: "arm64"}.get(pe.machine, hex(pe.machine))
     imports = pe.imports()
     strings = set(m.lower() for m in re.findall(rb"[A-Za-z0-9_]{3,16}\.dll", data))
+    # Ano de compilação do .exe (cabeçalho COFF). Valores fora de 1995–2035 são lixo
+    # de compiladores que gravam hash no lugar da data; nesse caso fica 0.
+    year = time.gmtime(pe.timestamp).tm_year if pe.timestamp else 0
     info = {
         "arch": arch,
+        "year": year if 1995 <= year <= 2035 else 0,
         "gui": pe.subsystem == 2,
         "imports": imports,
         "renderer": pick_renderer(arch, imports, strings),
