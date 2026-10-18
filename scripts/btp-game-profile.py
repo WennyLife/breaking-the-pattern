@@ -61,7 +61,7 @@ def apply(game, exe, prefix, resources, data):
         return
     backup = data / 'Backups/Profiles' / datetime.now().strftime('%Y%m%d-%H%M%S-%f')
     if profile['id'] == 'gtasa':
-        set_values(executable.parent / 'mtld3d.conf', {'present.maxFps': 60, 'shader.asyncCompile': 'false'}, backup)
+        set_values(executable.parent / 'mtld3d.conf', {'present.maxFps': 60}, backup)
     if profile['id'] == 'nfsu2':
         relative = game.relative_to(prefix / 'drive_c')
         windows = 'C:\\' + str(relative).replace('/', '\\') + '\\'

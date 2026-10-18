@@ -218,7 +218,10 @@ for RECORD in Runtime.json Attributions.txt; do
 done
 if [[ "$(basename "$EXE" | tr '[:upper:]' '[:lower:]')" == "gta_sa.exe" && -f "$SCRIPT_DIR/btp-game-profile.py" ]]; then
     python3 -I -B "$SCRIPT_DIR/btp-game-profile.py" --patch-gta-runtime "$APP_STAGE/Contents/Resources"
-    OVERRIDES+=";vorbisFile=n,b;vorbisHooked=n,b"
+    # Match the working GTA recipe: avoid the unavailable Wine WM reader and
+    # retain the game's native audio libraries. Only the prepared copy changes.
+    OVERRIDES+=";winegstreamer=;wmvcore=;vorbisFile=n,b;vorbisHooked=n,b;eax=n,b;ogg=n,b;vorbis=n,b;xinput1_3=b,n"
+    [[ -n "$GAME_ARGS" ]] || GAME_ARGS='-memory 1048576'
 fi
 
 # Valores escritos com %q para sobreviver a espaços, aspas e barras invertidas no launch-game.sh.

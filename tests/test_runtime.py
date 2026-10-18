@@ -66,12 +66,19 @@ class Components(unittest.TestCase):
         with self.assertRaises(ValueError):profiles.identify(exe)
         self.assertEqual(exe.read_bytes(),b'unknown edition')
     def test_cap_preserves_quality_and_backup(self):
-        config=self.root/'mtld3d.conf'; old='quality = 8\npresent.maxFps = 0\n'
-        config.write_text(old); backup=self.root/'backup'
-        profiles.set_values(config,{'present.maxFps':60},backup)
+        game=self.root/'game';game.mkdir();(game/'gta_sa.exe').write_bytes(b'test edition')
+        data=self.root/'data';(data/'Registros').mkdir(parents=True)
+        config=game/'mtld3d.conf'; old='quality = 8\nshader.asyncCompile = true\npresent.maxFps = 0\n'
+        config.write_text(old)
+        with patch.object(profiles,'identify',return_value={'id':'gtasa'}):
+            profiles.apply(game,'gta_sa.exe',self.root/'prefix',self.root/'resources',data)
         self.assertIn('quality = 8',config.read_text())
+        self.assertIn('shader.asyncCompile = true',config.read_text())
         self.assertIn('present.maxFps = 60',config.read_text())
-        self.assertEqual((backup/config.name).read_text(),old)
+        backups=list((data/'Backups/Profiles').rglob(config.name))
+        self.assertEqual(len(backups),1)
+        self.assertEqual(backups[0].read_text(),old)
+        self.assertEqual((game/'gta_sa.exe').read_bytes(),b'test edition')
     def test_unrecognized_renderer_unmodified(self):
         dll=self.root/'wine/lib/wine/d3d9/mtld3d/i386-windows/d3d9.dll'
         dll.parent.mkdir(parents=True); dll.write_bytes(bytes.fromhex('b8ffff9e00'))

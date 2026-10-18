@@ -11,7 +11,7 @@
     },
     "gta_sa.exe": {
       "id": "gtasa",
-      "recipe": 1,
+      "recipe": 2,
       "tested_executable_sha256": ["cd5b18b490da046861ceedd2e075ab4d167f4355a1e3938f7343cfb055c20a2d"],
       "windows": "win7",
       "renderer": "d3d9=mtld3d",
