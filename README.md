@@ -8,7 +8,7 @@
 
 [Releases](https://github.com/WennyLife/breaking-the-pattern/releases) · [Português](README.pt-BR.md) · [How it works](docs/METODO-E-VALIDACAO.md)
 
-**0.2.1 Preview · English / Português · macOS 15+ · Apple Silicon**
+**0.2.3 Candidate · English / Português · macOS 15+ · Apple Silicon**
 
 </div>
 
@@ -18,7 +18,7 @@ BTP prepares a separate Mac launcher and a Wine compatibility environment for a 
 
 ## Getting started
 
-The 0.2.1 ZIP/DMG preview is built and verified locally. Its public binary upload is pending; this repository currently provides the source and build instructions. The update feed remains empty until signed assets are published.
+The 0.2.3 candidate is built and verified locally. Testing was paused by the user on 2026-10-18 before final GTA confirmation and public installer publication. No 0.2.3 installer or update offer has been published yet. The steps below describe the intended release flow.
 
 1. Download the current DMG or ZIP from [Releases](https://github.com/WennyLife/breaking-the-pattern/releases). Copy BTP to your Applications folder.
 2. Open BTP and select your game folder. Install Rosetta through macOS if it is missing. Internet access is needed for the first runtime download (about 235 MB; roughly 1.3 GB expanded).
@@ -27,7 +27,7 @@ The 0.2.1 ZIP/DMG preview is built and verified locally. Its public binary uploa
 
 Use **BTP → Language / Idioma** to choose English, Português (Brasil), or the Mac language. The language setting changes BTP, not the language files of a game.
 
-This preview is locally ad hoc signed, not Apple-notarized. First launch on another Mac and a complete clean-machine game installation still need independent validation.
+The app is ad hoc signed, not Apple-notarized. Independent first-launch validation on another physical Mac remains pending. The first preparation needs internet access; BTP contains the recipes and obtains the pinned runtime/components automatically.
 
 ## Initial game scope
 
@@ -35,13 +35,13 @@ BTP combines [reusable compatibility rules and edition-specific recipes](docs/CO
 
 | Game | Recipe | Current limit |
 |---|---|---|
-| Need for Speed Underground 2 | Direct3D 9 → Metal, x87sidecar, Windows 7, consistent `C:\Games\NFSU2` path/registry and private D: data mapping | Tested executable edition only; existing game-folder plugins/settings are preserved |
+| Need for Speed Underground 2 | Direct3D 9 → Metal, x87sidecar, Windows 7, consistent `C:\Games\NFSU2` path/registry and private D: data mapping | Tested executable edition only; required components are obtained automatically and existing settings are preserved |
 | GTA San Andreas | Direct3D 9 → Metal, copied renderer adjustment, Windows 7, 60 FPS cap | Tested user-supplied executable edition only; no executable replacement |
 | Splinter Cell Conviction | Existing local prepared apps can still be opened | Experimental; character voices remain unresolved. Not part of this initial preparation release |
 
-The accepted executable hashes and recipe versions are in [`scripts/game-profiles.json`](scripts/game-profiles.json). Unknown editions are rejected before preparing a runtime. An edition match is a compatibility gate, not an authenticity or malware check. Existing game-folder fixes are retained; this release does not yet acquire every third-party game mod automatically.
+The accepted executable hashes and recipe versions are in [`scripts/game-profiles.json`](scripts/game-profiles.json). Unknown editions are rejected before preparing a runtime. An edition match is a compatibility gate, not an authenticity or malware check. Required WidescreenFix/ASI components and GTA SilentPatch are obtained automatically with pinned checksums. Existing configuration files are preserved. Optional controller mods are not part of the automatic preparation.
 
-The original local NFS/GTA sessions were playable. The new donor-free runtime booted a fresh Windows prefix and ran a command successfully. An isolated NFS copy then reached a rendered scene and the user confirmed driving, sound, and commands after the missing private D: mapping was added; this uses the known local game folder, including its existing plugins. The regenerated GTA launcher also reached gameplay; the user confirmed moving CJ with normal sound and commands. Those results do not guarantee a sustained frame rate, every mission, or every Mac. GTA stays capped at 60 FPS because higher rates caused problems and light/reflection flickering in user testing. No 4K/60 or universal-conversion claim is made. See the [validation record](docs/VALIDATION-0.2.0.md) for the exact scope and remaining checks.
+Private NFSU2 and GTA SA preparation copies were generated from game folders with the manual ASI/Widescreen/SilentPatch plugins removed. The bundled helpers obtained the required components automatically using their pinned checksums. Preparation was repeated with the final launcher settings, private renderer adjustment and GTA 60 FPS cap. NFSU2 driving, sound and commands were confirmed by the user in the new generated copy. See the [0.2.3 validation record](docs/VALIDATION-0.2.3.md) for the final gameplay results and exact limits. This does not guarantee a sustained frame rate, every mission, or every Mac.
 
 ## Updates inside BTP
 

@@ -31,7 +31,7 @@ ET.SubElement(item, 'pubDate').text = format_datetime(datetime.now(timezone.utc)
 ET.SubElement(item, '{' + ns + '}version').text = info['CFBundleVersion']
 ET.SubElement(item, '{' + ns + '}shortVersionString').text = version
 ET.SubElement(item, '{' + ns + '}minimumSystemVersion').text = info['LSMinimumSystemVersion']
-ET.SubElement(item, 'description').text = ('English: Developer preview. Fresh game setup is still under validation. In-app signed updates, English/Portuguese interface, independent compatibility runtime, '
+ET.SubElement(item, 'description').text = ('English: Automatic required components and tested NFSU2/GTA recipes. In-app signed updates, English/Portuguese interface, independent compatibility runtime, '
     'edition-specific NFS Underground 2 and GTA San Andreas recipes. No games included. '
     'Português: atualizações assinadas pelo app, interface em inglês/português, motor independente e receitas por edição para NFSU2/GTA SA. Sem jogos incluídos. '
     'Splinter Cell remains experimental and is not part of this initial release.')

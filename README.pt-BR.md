@@ -2,9 +2,9 @@
 
 [English](README.md) · [Publicações](https://github.com/WennyLife/breaking-the-pattern/releases)
 
-**0.2.1 Preview · português e inglês · Mac Apple Silicon · macOS 15 ou posterior**
+**0.2.3 Candidato · português e inglês · Mac Apple Silicon · macOS 15 ou posterior**
 
-O ZIP/DMG0.2.1 foi gerado e verificado localmente; o envio público dos instaladores ainda está pendente. O feed fica sem ofertas até os pacotes assinados serem publicados.
+O candidato0.2.3 foi compilado localmente. Você pausou os testes em18/10/2026 antes da confirmação final do GTA e da publicação dos instaladores. Ainda não há instalador0.2.3 ou oferta pública de atualização. Os passos abaixo descrevem o fluxo pretendido para o lançamento.
 
 O BTP prepara um aplicativo Mac e um ambiente de compatibilidade para a pasta de um jogo que você fornece. Ele obtém o próprio motor, confere os downloads por SHA-256 e aplica receitas por edição. Não precisa de um NFS doador nem de Xcode no Mac final.
 
@@ -29,9 +29,9 @@ O BTP reúne [regras reutilizáveis e receitas por jogo](docs/COMPATIBILITY-KNOW
 
 - NFSU2: receita Direct3D9→Metal/x87, Windows7 e caminho/registro coerentes em `C:\Games\NFSU2`.
 - GTA SA: receita Metal/x87, renderizador ajustado em cópia e limite60 FPS, preservando os demais ajustes de qualidade.
-- Edições aceitas: [`scripts/game-profiles.json`](scripts/game-profiles.json). Outras edições são recusadas antes da preparação. Os plugins já presentes na pasta são preservados; o download automático de todos os mods específicos ainda não está implementado.
+- Edições aceitas: [`scripts/game-profiles.json`](scripts/game-profiles.json). Outras edições são recusadas antes da preparação. Os componentes necessários de WidescreenFix/ASI e SilentPatch são obtidos automaticamente com verificação de integridade. Configurações já existentes são preservadas; mods opcionais de controle não fazem parte da preparação automática.
 - Splinter Cell: os apps locais continuam acessíveis, mas o suporte de preparação fica para atualização futura. A falha nas vozes permanece aberta.
-- O motor independente iniciou um ambiente Windows limpo. Depois do ajuste da unidade D:, a cópia isolada do NFS mostrou a cena renderizada e você confirmou direção, som e comandos. O teste usa a pasta conhecida, com os plugins já presentes nela. A cópia do GTA também entrou em partida, com movimento do CJ, som e comandos confirmados. Detalhes no [registro de validação](docs/VALIDATION-0.2.0.md).
+- Cópias privadas de NFSU2/GTA foram preparadas a partir de pastas sem os plugins manuais: os auxiliares embarcados obtiveram os componentes necessários automaticamente. Você confirmou direção, som e comandos no novo NFS gerado. Os resultados finais de partida estão no [registro 0.2.3](docs/VALIDATION-0.2.3.md).
 - Os NFS/GTA locais foram jogáveis. Isso não garante todas as missões, outros Macs ou4K/60. O BTP ainda não foi validado por uma instalação completa em outro Mac.
 - Assinatura ad hoc local, sem notarização Apple. Não há garantia de primeira abertura sem intervenção em outro Mac.
 - Use pasta Aplicativos local. Um teste em Documentos sincronizados falhou na troca do app; a mesma atualização assinada funcionou e reabriu numa pasta local de teste.
