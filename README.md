@@ -1,79 +1,89 @@
 <div align="center">
 
+<img src="assets/icon.png" width="144" alt="Ícone do Breaking the Pattern" />
+
 # ⚡ Breaking the Pattern
 
-![Breaking the Pattern icon](assets/icon.png)
+### Sua pasta de jogo Windows, preparada para jogar no Mac.
 
-**Prepare your own Windows games for Apple Silicon Macs.**
+[![Versão](https://img.shields.io/badge/versão-0.2.3-25c95a?style=for-the-badge)](https://github.com/WennyLife/breaking-the-pattern/releases/tag/v0.2.3)
+![macOS](https://img.shields.io/badge/macOS-15%2B-24292f?style=for-the-badge&logo=apple)
+![Apple Silicon](https://img.shields.io/badge/Mac-Apple%20Silicon-6f42c1?style=for-the-badge)
 
-[Releases](https://github.com/WennyLife/breaking-the-pattern/releases) · [Português](README.pt-BR.md) · [How it works](docs/METODO-E-VALIDACAO.md)
+**Você fornece a pasta de um jogo compatível. O BTP cuida da preparação.**
 
-**0.2.3 · English / Português · macOS 15+ · Apple Silicon**
+**[📥 Baixar para Mac (.dmg)](https://github.com/WennyLife/breaking-the-pattern/releases/download/v0.2.3/Breaking-the-Pattern-0.2.3.dmg)** · **[📦 Baixar ZIP](https://github.com/WennyLife/breaking-the-pattern/releases/download/v0.2.3/Breaking-the-Pattern-0.2.3.zip)**
+
+Português (Brasil) · [English](README.en.md) · [Novidades da versão](https://github.com/WennyLife/breaking-the-pattern/releases/tag/v0.2.3)
 
 </div>
 
-BTP prepares a separate Mac launcher and a Wine compatibility environment for a game folder you provide. It downloads its own pinned runtime components, verifies their SHA-256 checksums, and applies an edition-specific recipe. You do not need a previously prepared NFS app or Xcode on the destination Mac.
+---
 
-**Games, game executables, saves, cracks, and personal Wine prefixes are not included.** Supply your own game files. BTP does not download commercial games or replace their executables.
+## 🎮 O que é o BTP?
 
-## Getting started
+O **Breaking the Pattern** prepara jogos Windows compatíveis para rodar no Mac com Apple Silicon. Você seleciona a pasta do jogo, clica em **BREAK** e recebe um aplicativo para abrir o jogo pelo Mac.
 
-Download the current [DMG](https://github.com/WennyLife/breaking-the-pattern/releases/latest) or ZIP from Releases. Install BTP, select your own supported game folder and click **BREAK**. BTP obtains and verifies the compatibility components automatically; no manual plugins or code are required.
+As correções validadas de cada jogo ficam na ferramenta. O BTP identifica a edição, obtém os componentes necessários e aplica a preparação automaticamente, sem exigir código ou instalação manual de plugins.
 
-1. Download the current DMG or ZIP from [Releases](https://github.com/WennyLife/breaking-the-pattern/releases). Copy BTP to your Applications folder.
-2. Open BTP and select your game folder. Install Rosetta through macOS if it is missing. Internet access is needed for the first runtime download (about 235 MB; roughly 1.3 GB expanded).
-3. Click **BREAK**. The initial recipes target the tested editions of **Need for Speed Underground 2** and **GTA San Andreas**.
-4. Launch the generated game app and verify gameplay, sound, input, and saving. **Prepared** means packaging completed; it does not mean every mission was verified.
+**O BTP vem sem jogos. Cada pessoa fornece a própria cópia.**
 
-Use **BTP → Language / Idioma** to choose English, Português (Brasil), or the Mac language. The language setting changes BTP, not the language files of a game.
+## ⚡ Como usar
 
-The app is ad hoc signed, not Apple-notarized. Independent first-launch validation on another physical Mac remains pending. The first preparation needs internet access; BTP contains the recipes and obtains the pinned runtime/components automatically.
+| 1. Selecione a pasta | 2. Clique em BREAK | 3. Abra o jogo |
+|:---|:---|:---|
+| Escolha a pasta completa de um jogo compatível. | O BTP identifica a edição e prepara os componentes e as correções. | Use **ABRIR JOGO** ou o aplicativo criado na sua pasta Aplicativos. |
 
-## Initial game scope
+## 🏁 Jogos desta versão
 
-BTP combines [reusable compatibility rules and edition-specific recipes](docs/COMPATIBILITY-KNOWLEDGE.md). The bundled knowledge catalog drives preparation and records decisions in `Registros/CompatibilityPlan.json`. Game-specific fixes are not transferred to other titles without matching evidence; autonomous learning is not implemented.
+| Jogo | O que foi confirmado |
+|:---|:---|
+| **Need for Speed Underground 2** | Preparação automática a partir de pasta sem os plugins manuais; partida, som e comandos confirmados na edição testada. |
+| **Grand Theft Auto: San Andreas** | Preparação automática a partir de pasta sem os plugins manuais; partida, som e comandos confirmados na edição testada. Limite configurado de 60 FPS por compatibilidade. |
 
-| Game | Recipe | Current limit |
-|---|---|---|
-| Need for Speed Underground 2 | Direct3D 9 → Metal, x87sidecar, Windows 7, consistent `C:\Games\NFSU2` path/registry and private D: data mapping | Tested executable edition only; required components are obtained automatically and existing settings are preserved |
-| GTA San Andreas | Direct3D 9 → Metal, copied renderer adjustment, Windows 7, 60 FPS cap | Tested user-supplied executable edition only; no executable replacement |
-| Splinter Cell Conviction | Existing local prepared apps can still be opened | Experimental; character voices remain unresolved. Not part of this initial preparation release |
+O suporte depende da **edição do jogo**, não apenas do nome da pasta. O BTP verifica o executável antes de aplicar a receita. [Consultar edições aceitas e validação →](docs/VALIDATION-0.2.3.md)
 
-The accepted executable hashes and recipe versions are in [`scripts/game-profiles.json`](scripts/game-profiles.json). Unknown editions are rejected before preparing a runtime. An edition match is a compatibility gate, not an authenticity or malware check. Required WidescreenFix/ASI components and GTA SilentPatch are obtained automatically with pinned checksums. Existing configuration files are preserved. Optional controller mods are not part of the automatic preparation.
+Novos jogos entram na base conforme suas soluções forem testadas em partida. Splinter Cell Conviction permanece fora deste lançamento inicial.
 
-Private NFSU2 and GTA SA preparation copies were generated from game folders with the manual ASI/Widescreen/SilentPatch plugins removed. The bundled helpers obtained the required components automatically using their pinned checksums. Preparation was repeated with the final launcher settings, private renderer adjustment and GTA 60 FPS cap. The user confirmed NFSU2 driving and GTA SA CJ movement, with normal sound and commands in both newly generated copies. See the [0.2.3 validation record](docs/VALIDATION-0.2.3.md) for the final gameplay results and exact limits. This does not guarantee a sustained frame rate, every mission, or every Mac.
+## 📥 Instalação no Mac
 
-## Updates inside BTP
+1. Baixe o **[BTP 0.2.3 em DMG](https://github.com/WennyLife/breaking-the-pattern/releases/download/v0.2.3/Breaking-the-Pattern-0.2.3.dmg)** ou o ZIP.
+2. Copie **Breaking the Pattern.app** para a pasta **Aplicativos** do seu Mac.
+3. Abra o BTP e selecione a pasta completa do jogo.
+4. Clique em **BREAK**, aguarde a preparação e depois escolha **ABRIR JOGO**.
 
-Open **BTP → Updates…** or use the circular arrow in the header. Automatic checks can be disabled. You choose when to install and relaunch.
+**Requisitos:** Mac com Apple Silicon, macOS 15 ou posterior, Rosetta e internet na primeira preparação. Se Rosetta estiver ausente, instale-a pelo macOS. O primeiro preparo baixa cerca de 235 MB de componentes, que ocupam aproximadamente 1,3 GB após extraídos.
 
-Updates use [Sparkle](https://sparkle-project.org/), an HTTPS feed, and Ed25519-signed archives. Before an offered update proceeds, BTP saves and verifies a copy of its previous app bundle in `~/Library/Application Support/Breaking the Pattern/Backups/Updates/`. Updating BTP does not replace generated game apps, prefixes, or saves. New game preparation uses the new recipes; existing game apps stay on their previous components until deliberately prepared again.
+A versão atual ainda não tem notarização Apple; a primeira abertura pode exigir autorização do macOS. A validação de uma instalação completa em outro Mac ainda está pendente.
 
-Install BTP in a local Applications folder. A test from a synchronized Documents folder failed to replace the app; the same signed update installed and relaunched successfully from a local Application Support test location.
+## 🔄 Atualizações pelo próprio BTP
 
-## What actually runs
+Abra **BTP → Atualizações…** ou use a seta circular no cabeçalho. Você escolhe quando baixar, instalar e reabrir.
 
-The BTP interface and launchers are native Swift/ARM64 applications. The game remains its Windows executable. [Wine](https://github.com/athei/wine-build) provides Windows APIs, Rosetta runs Intel code, [x87sidecar](https://github.com/athei/x87sidecar) assists compatible x87 workloads, and [mtld3d](https://github.com/athei/mtld3d) translates Direct3D 9 to Metal.
+A atualização da versão 0.2.2 para a 0.2.3 foi testada pelo próprio aplicativo. O BTP guarda uma cópia da versão anterior; a atualização da ferramenta preserva os aplicativos dos jogos, as configurações e os saves. Para aplicar uma receita nova a um jogo já preparado, faça a preparação novamente de forma deliberada.
 
-BTP does not decompile a game into a new native Mac source project. “HyperMetal” and “Neural” are project labels for these components; they do not imply use of Apple's Neural Engine. APFS cloning can share disk blocks initially; game data, caches, and backups still consume storage.
+## ✨ O que você encontra
 
-The separate FPS overlay toggles with **Command + Option + 9**. Its Wine/Metal adapters report interval averages, not universal game coverage or per-frame minimums.
+- **Preparação automática:** correções e componentes necessários para as edições compatíveis.
+- **Aplicativo separado para cada jogo:** o BTP pode ser fechado depois de preparar o jogo.
+- **Português e inglês:** escolha em **BTP → Language / Idioma**.
+- **Contador de FPS:** mostre ou esconda com **Command + Option + 9**, nos jogos atendidos pelos adaptadores do contador.
+- **Base de compatibilidade que recebe atualizações:** novas receitas entram conforme são validadas.
 
-## Build and contribute
+O jogo continua usando um ambiente de compatibilidade. O resultado foi confirmado neste Mac e nas edições testadas; desempenho, campanha completa e outros computadores precisam de validação própria.
 
-On an Apple Silicon development Mac with Apple's command-line tools and Python 3:
+## 💬 Encontrou um problema?
 
-```sh
-bash scripts/build.sh --build-only
-python3 tests/test_runtime.py
-python3 tests/test_packaging.py
-python3 tests/test_splinter_profile.py
-```
+[Abra um relato no GitHub](https://github.com/WennyLife/breaking-the-pattern/issues/new) com o jogo, a edição, o modelo do Mac, a versão do macOS e o que aconteceu. Não envie arquivos do jogo ou saves no relato público.
 
-The build downloads pinned Python and Sparkle dependencies and compiles the launchers/helpers. It does not need a game donor. `--install` publishes a verified build to the local Applications folder and the central app archive, preserving previous versions.
+## 📚 Documentação e contribuição
 
-Runtime versions, download URLs, checksums, and source links are in [`scripts/runtime-manifest.json`](scripts/runtime-manifest.json). The initial runtime excludes Apple's D3DMetal/GPTK components. See [third-party notices](THIRD_PARTY.md) and [release instructions](docs/RELEASING.md).
+[Validação da versão 0.2.3](docs/VALIDATION-0.2.3.md) · [Edições aceitas](scripts/game-profiles.json) · [Desenvolvimento](docs/DEVELOPMENT.md) · [Licenças dos componentes](THIRD_PARTY.md) · [Licença MIT](LICENSE)
 
-Report the game edition, runtime version, exact symptom, graphics settings, and reproducible steps. A new confirmed fix can become a versioned recipe; unverified attempts do not become automatic rules.
+---
 
-[Support via PayPal](https://www.paypal.com/donate/?business=uildsonaraujo@gmail.com&currency_code=BRL) · [MIT license for BTP code](LICENSE)
+<div align="center">
+
+Desenvolvido por **[WennyLife](https://github.com/WennyLife)** · [Apoiar o projeto](https://www.paypal.com/donate/?business=uildsonaraujo@gmail.com&currency_code=BRL)
+
+</div>
