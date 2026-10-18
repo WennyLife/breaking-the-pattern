@@ -77,5 +77,18 @@ class Components(unittest.TestCase):
         dll.parent.mkdir(parents=True); dll.write_bytes(bytes.fromhex('b8ffff9e00'))
         with self.assertRaises(ValueError):profiles.patch_gta_runtime(self.root)
         self.assertEqual(dll.read_bytes(),bytes.fromhex('b8ffff9e00'))
+    def test_nfs_data_drive_does_not_replace_existing_mapping(self):
+        prefix=self.root/'prefix'; game=prefix/'drive_c/Games/NFSU2'
+        game.mkdir(parents=True); (prefix/'dosdevices').mkdir()
+        drive=prefix/'dosdevices/d:'; drive.symlink_to('../unmounted-volume')
+        self.assertFalse(profiles.ensure_nfs_data_drive(game,prefix))
+        self.assertEqual(str(drive.readlink()),'../unmounted-volume')
+    def test_nfs_data_drive_stays_in_private_prefix(self):
+        prefix=self.root/'prefix'; game=prefix/'drive_c/Games/NFSU2'
+        game.mkdir(parents=True); (prefix/'dosdevices').mkdir()
+        self.assertTrue(profiles.ensure_nfs_data_drive(game,prefix))
+        drive=prefix/'dosdevices/d:'
+        self.assertEqual(drive.resolve(),game.resolve())
+        self.assertFalse(drive.readlink().is_absolute())
 
 if __name__=='__main__':unittest.main()

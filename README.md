@@ -33,13 +33,13 @@ This preview is locally ad hoc signed, not Apple-notarized. First launch on anot
 
 | Game | Recipe | Current limit |
 |---|---|---|
-| Need for Speed Underground 2 | Direct3D 9 → Metal, x87sidecar, Windows 7, consistent `C:\Games\NFSU2` path and registry | Tested executable edition only; existing game-folder plugins/settings are preserved |
+| Need for Speed Underground 2 | Direct3D 9 → Metal, x87sidecar, Windows 7, consistent `C:\Games\NFSU2` path/registry and private D: data mapping | Tested executable edition only; existing game-folder plugins/settings are preserved |
 | GTA San Andreas | Direct3D 9 → Metal, copied renderer adjustment, Windows 7, 60 FPS cap | Tested user-supplied executable edition only; no executable replacement |
 | Splinter Cell Conviction | Existing local prepared apps can still be opened | Experimental; character voices remain unresolved. Not part of this initial preparation release |
 
 The accepted executable hashes and recipe versions are in [`scripts/game-profiles.json`](scripts/game-profiles.json). Unknown editions are rejected before preparing a runtime. An edition match is a compatibility gate, not an authenticity or malware check. Existing game-folder fixes are retained; this release does not yet acquire every third-party game mod automatically.
 
-The original local NFS/GTA sessions were playable. The new donor-free runtime booted a fresh Windows prefix and ran a command successfully; its generated NFS/GTA launchers passed package signing, but a new playable session has not yet been verified. Fresh-prefix NFS testing exposed a startup failure; the recipe is still under diagnosis. Those results do not guarantee a sustained frame rate, every mission, or every Mac. GTA stays capped at 60 FPS because higher rates caused problems in user testing. No 4K/60 or universal-conversion claim is made.
+The original local NFS/GTA sessions were playable. The new donor-free runtime booted a fresh Windows prefix and ran a command successfully. An isolated NFS copy then reached a rendered scene and the user confirmed driving, sound, and commands after the missing private D: mapping was added; this uses the known local game folder, including its existing plugins. The new GTA launcher passed package signing but a playable session is still unverified. Those results do not guarantee a sustained frame rate, every mission, or every Mac. GTA stays capped at 60 FPS because higher rates caused problems in user testing. No 4K/60 or universal-conversion claim is made. See the [validation record](docs/VALIDATION-0.2.0.md) for the exact scope and remaining checks.
 
 ## Updates inside BTP
 

@@ -178,7 +178,9 @@ fi
 [[ -f "$GAME_IN_PREFIX/$EXE" ]] || { echo "Executável não encontrado no prefixo: $GAME_IN_PREFIX/$EXE" >&2; exit 1; }
 EXE_DIR_REL="$(dirname "$EXE")"
 # O launcher usa a pasta do .exe como cwd, inclusive para executáveis aninhados.
-if [[ ! -f "$GAME_IN_PREFIX/$EXE_DIR_REL/mtld3d.conf" ]]; then
+# NFS uses the renderer defaults, matching the independently tested recipe.
+# Preserve a configuration supplied by the user, but do not add the generic one.
+if [[ "$PROFILE_FOLDER" != NFSU2 && ! -f "$GAME_IN_PREFIX/$EXE_DIR_REL/mtld3d.conf" ]]; then
 cat > "$GAME_IN_PREFIX/$EXE_DIR_REL/mtld3d.conf" << 'EOF'
 shader.asyncCompile = true
 depth.aliasSameSize = false

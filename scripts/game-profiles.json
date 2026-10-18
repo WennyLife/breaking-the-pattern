@@ -3,7 +3,7 @@
   "profiles": {
     "speed2.exe": {
       "id": "nfsu2",
-      "recipe": 1,
+      "recipe": 2,
       "tested_executable_sha256": ["db8f7b6f6c5439a9fec17829efb0cf31771eaf967de08f99f9146d302ec5a680"],
       "windows": "win7",
       "renderer": "d3d9=mtld3d",

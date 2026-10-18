@@ -42,6 +42,18 @@ def set_values(path, values, backup):
         path.write_text(new)
 
 
+def ensure_nfs_data_drive(game, prefix):
+    # The tested NFS edition enumerates D: during RealCore initialization.
+    # A fresh C:/Z: prefix faulted at 0x006f7429; a private D: data alias
+    # passed startup and a user-driven session. Never replace an existing drive.
+    alias = prefix / 'dosdevices/d:'
+    if alias.exists() or alias.is_symlink():
+        return False
+    game.relative_to(prefix / 'drive_c')
+    alias.symlink_to(os.path.relpath(game, alias.parent), target_is_directory=True)
+    return True
+
+
 def apply(game, exe, prefix, resources, data):
     executable = game / exe
     profile = identify(executable)
@@ -53,11 +65,19 @@ def apply(game, exe, prefix, resources, data):
     if profile['id'] == 'nfsu2':
         relative = game.relative_to(prefix / 'drive_c')
         windows = 'C:\\' + str(relative).replace('/', '\\') + '\\'
+        added_data_drive = ensure_nfs_data_drive(game, prefix)
+        alias = prefix / 'dosdevices/d:'
+        managed_data_drive = added_data_drive or (alias.is_symlink() and alias.resolve() == game.resolve())
         env = dict(os.environ, WINEPREFIX=str(prefix), WINEARCH='wow64', WINELOADERNOEXEC='1',
                    WINEDEBUG='-all', WINESERVER=str(resources / 'wine/bin/wineserver'))
         log = data / 'Registros/nfs-registry.log'
         log.parent.mkdir(parents=True, exist_ok=True)
         with log.open('ab') as output:
+            if managed_data_drive:
+                subprocess.run([str(resources / 'GameRuntime.app/Contents/MacOS/wine'), 'reg', 'add',
+                                'HKCU\\Software\\Wine\\Drives', '/v', 'd:', '/t', 'REG_SZ',
+                                '/d', 'floppy', '/f'], env=env, stdout=output, stderr=output,
+                               check=True, timeout=40)
             for company in ('EA Games', 'Electronic Arts\\EA Games'):
                 key = 'HKLM\\Software\\' + company + '\\Need for Speed Underground 2'
                 for value in ('Install Dir', 'InstallDir', 'Path', 'CD Drive'):
