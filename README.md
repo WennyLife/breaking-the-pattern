@@ -18,6 +18,12 @@ Português (Brasil) · [English](README.en.md) · [Novidades da versão](https:/
 
 </div>
 
+<p align="center">
+  <img src="assets/btp-0.2.3.png" width="780" alt="Tela real do Breaking the Pattern 0.2.3" />
+  <br />
+  <sub>BTP 0.2.3 — biblioteca, preparação e abertura dos jogos em uma única tela.</sub>
+</p>
+
 ---
 
 ## 🎮 O que é o BTP?

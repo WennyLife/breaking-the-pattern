@@ -18,6 +18,12 @@
 
 </div>
 
+<p align="center">
+  <img src="assets/btp-0.2.3.png" width="780" alt="Breaking the Pattern 0.2.3 app window" />
+  <br />
+  <sub>BTP 0.2.3 — your library, game preparation and launch in one window.</sub>
+</p>
+
 ---
 
 ## 🎮 What is BTP?
