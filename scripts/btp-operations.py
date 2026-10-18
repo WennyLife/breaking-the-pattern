@@ -166,12 +166,18 @@ def plan_operations(pe_info, recipe=None, target_game=None):
     year = pe_info.get('year', 0)
     imports = set(pe_info.get('imports', []))
     recipe_id = recipe.get('id') if isinstance(recipe, dict) else (recipe or '')
+    pinned_operations = recipe.get('operations') if isinstance(recipe, dict) else None
+    if pinned_operations:
+        unknown = set(pinned_operations) - set(OPERATIONS)
+        if unknown:
+            raise ValueError('Operações desconhecidas na receita: ' + ', '.join(sorted(unknown)))
+    candidates = [(key, OPERATIONS[key]) for key in pinned_operations] if pinned_operations else OPERATIONS.items()
 
     selected = []
     skipped_conflicts = []
     active_conflicts = set()
 
-    for op_id, op in OPERATIONS.items():
+    for op_id, op in candidates:
         when = op.get('when', {})
 
         # 1. Filtro de receita
@@ -179,15 +185,15 @@ def plan_operations(pe_info, recipe=None, target_game=None):
             continue
 
         # 2. Filtro de arquitetura
-        if 'arch_in' in when and arch not in when['arch_in']:
+        if not pinned_operations and 'arch_in' in when and arch not in when['arch_in']:
             continue
 
         # 3. Filtro de DLLs importadas
-        if 'uses_any' in when and not imports.intersection(when['uses_any']):
+        if not pinned_operations and 'uses_any' in when and not imports.intersection(when['uses_any']):
             continue
 
         # 4. Filtro de ano COFF
-        if 'year_max_exclusive' in when and (year <= 0 or year >= when['year_max_exclusive']):
+        if not pinned_operations and 'year_max_exclusive' in when and (year <= 0 or year >= when['year_max_exclusive']):
             continue
 
         # 5. Checagem de conflitos

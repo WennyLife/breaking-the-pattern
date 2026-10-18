@@ -19,6 +19,11 @@ profiles = module('btp-game-profile')
 ops = profiles._operations
 
 class ReleaseIntegration(unittest.TestCase):
+    def test_tested_recipe_wins_over_missing_static_imports_and_timestamp(self):
+        recipe = profiles.PROFILES['gta_sa.exe']
+        plan = ops.plan_operations({'arch': 'i386', 'imports': ['kernel32.dll'], 'year': 0}, recipe=recipe)
+        self.assertEqual(plan['selected_operations'], recipe['operations'])
+
     def test_settings_export_is_consumable_and_cannot_execute_values(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
