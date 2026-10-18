@@ -4,6 +4,12 @@
 
 # ⚡ Breaking the Pattern
 
+<p align="center">
+  <img src="assets/btp-0.2.3.png" width="780" alt="Breaking the Pattern 0.2.3 app window" />
+  <br />
+  <sub>BTP 0.2.3 — your library, game preparation and launch in one window.</sub>
+</p>
+
 ### Prepare your Windows game folder to play on Mac.
 
 [![Version](https://img.shields.io/badge/version-0.2.3-25c95a?style=for-the-badge)](https://github.com/WennyLife/breaking-the-pattern/releases/tag/v0.2.3)
@@ -17,12 +23,6 @@
 [Português (Brasil)](README.md) · English · [Release notes](https://github.com/WennyLife/breaking-the-pattern/releases/tag/v0.2.3)
 
 </div>
-
-<p align="center">
-  <img src="assets/btp-0.2.3.png" width="780" alt="Breaking the Pattern 0.2.3 app window" />
-  <br />
-  <sub>BTP 0.2.3 — your library, game preparation and launch in one window.</sub>
-</p>
 
 ---
 

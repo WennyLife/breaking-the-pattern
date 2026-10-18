@@ -4,6 +4,12 @@
 
 # ⚡ Breaking the Pattern
 
+<p align="center">
+  <img src="assets/btp-0.2.3.png" width="780" alt="Tela real do Breaking the Pattern 0.2.3" />
+  <br />
+  <sub>BTP 0.2.3 — biblioteca, preparação e abertura dos jogos em uma única tela.</sub>
+</p>
+
 ### Sua pasta de jogo Windows, preparada para jogar no Mac.
 
 [![Versão](https://img.shields.io/badge/versão-0.2.3-25c95a?style=for-the-badge)](https://github.com/WennyLife/breaking-the-pattern/releases/tag/v0.2.3)
@@ -17,12 +23,6 @@
 Português (Brasil) · [English](README.en.md) · [Novidades da versão](https://github.com/WennyLife/breaking-the-pattern/releases/tag/v0.2.3)
 
 </div>
-
-<p align="center">
-  <img src="assets/btp-0.2.3.png" width="780" alt="Tela real do Breaking the Pattern 0.2.3" />
-  <br />
-  <sub>BTP 0.2.3 — biblioteca, preparação e abertura dos jogos em uma única tela.</sub>
-</p>
 
 ---
 
