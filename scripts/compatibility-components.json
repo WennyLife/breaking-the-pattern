@@ -1,0 +1,112 @@
+{
+  "schema": 1,
+  "revision": 1,
+  "scope": "Componentes e plugins de compatibilidade gerenciados pelo BTP. Fontes oficiais e hashes fixados.",
+  "components": {
+    "nfsu2-widescreen-fix": {
+      "id": "nfsu2-widescreen-fix",
+      "name": "NFS Underground 2 Widescreen Fix",
+      "author": "ThirteenAG",
+      "version": "latest",
+      "classification": "necessario",
+      "source_project": "https://github.com/ThirteenAG/WidescreenFixesPack",
+      "url": "https://github.com/ThirteenAG/WidescreenFixesPack/releases/download/nfsu2/NFSUnderground2.WidescreenFix.zip",
+      "sha256": "791fcf486db6916642b02a51dd6ed786da7bdbd6c4ad7e207c36ba1f0a5cca59",
+      "size": 8832311,
+      "unpacked_limit": 40000000,
+      "required_files": [
+        "dinput8.dll",
+        "scripts/NFSUnderground2.WidescreenFix.asi"
+      ],
+      "mapping": {
+        "dinput8.dll": "dinput8.dll",
+        "scripts/NFSUnderground2.WidescreenFix.asi": "scripts/NFSUnderground2.WidescreenFix.asi",
+        "scripts/NFSUnderground2.WidescreenFix.ini": "scripts/NFSUnderground2.WidescreenFix.ini",
+        "scripts/NFSUnderground2.WidescreenFix.dat": "scripts/NFSUnderground2.WidescreenFix.dat"
+      },
+      "purpose": "Resolução widescreen moderna, correção de HUD/FOV e desvio de verificação de mídia para NFS Underground 2."
+    },
+    "gtasa-widescreen-fix": {
+      "id": "gtasa-widescreen-fix",
+      "name": "GTA San Andreas Widescreen Fix",
+      "author": "ThirteenAG",
+      "version": "latest",
+      "classification": "necessario",
+      "source_project": "https://github.com/ThirteenAG/WidescreenFixesPack",
+      "url": "https://github.com/ThirteenAG/WidescreenFixesPack/releases/download/gtasa/GTASA.WidescreenFix.zip",
+      "sha256": "563078bfae5ad93be548d9378d4a97809762fb3a8dfdf0ef65e6023beadeb3ae",
+      "size": 8037059,
+      "unpacked_limit": 40000000,
+      "required_files": [
+        "vorbisFile.dll",
+        "scripts/GTASA.WidescreenFix.asi"
+      ],
+      "mapping": {
+        "vorbisFile.dll": "vorbisFile.dll",
+        "scripts/GTASA.WidescreenFix.asi": "scripts/GTASA.WidescreenFix.asi",
+        "scripts/GTASA.WidescreenFix.ini": "scripts/GTASA.WidescreenFix.ini"
+      },
+      "purpose": "Resolução widescreen e correção de proporção e radar para GTA San Andreas."
+    },
+    "gtasa-silentpatch": {
+      "id": "gtasa-silentpatch",
+      "name": "GTA San Andreas SilentPatch",
+      "author": "CookiePLMonster (Silent)",
+      "version": "Build 34.1",
+      "classification": "necessario",
+      "source_project": "https://github.com/CookiePLMonster/SilentPatch",
+      "url": "https://github.com/CookiePLMonster/SilentPatch/releases/latest/download/SilentPatchSA.zip",
+      "sha256": "0837bbdc0548a4a952f924adefd2bb6eacc866407f153844fe1f56995668c42c",
+      "size": 229397,
+      "unpacked_limit": 5000000,
+      "required_files": [
+        "scripts/SilentPatchSA.asi"
+      ],
+      "mapping": {
+        "SilentPatchSA.asi": "scripts/SilentPatchSA.asi",
+        "SilentPatchSA.ini": "scripts/SilentPatchSA.ini"
+      },
+      "purpose": "Correção de precisão do timer de 14ms (física), travamento do mouse ao sair do menu e falhas no Wine/macOS."
+    },
+    "splintercell-fusionfix": {
+      "id": "splintercell-fusionfix",
+      "name": "Splinter Cell Conviction FusionFix",
+      "author": "ThirteenAG",
+      "version": "latest",
+      "classification": "necessario",
+      "source_project": "https://github.com/ThirteenAG/WidescreenFixesPack",
+      "url": "https://github.com/ThirteenAG/WidescreenFixesPack/releases/download/scc/SplinterCellConviction.FusionFix.zip",
+      "sha256": "ebc392c5f5e1ade0d160dfcf0325c53cc528b8683e1c3c7df115f12e91015e3c",
+      "size": 8031265,
+      "unpacked_limit": 40000000,
+      "required_files": [
+        "version.dll",
+        "scripts/SplinterCellConviction.FusionFix.asi"
+      ],
+      "mapping": {
+        "src/system/version.dll": "version.dll",
+        "src/system/scripts/SplinterCellConviction.FusionFix.asi": "scripts/SplinterCellConviction.FusionFix.asi",
+        "src/system/scripts/SplinterCellConviction.FusionFix.ini": "scripts/SplinterCellConviction.FusionFix.ini"
+      },
+      "purpose": "Desvio de validação de hardware incompatível, suporte a modo janela e resolução widescreen."
+    }
+  },
+  "optional_reference": {
+    "nfsu2-xtendedinput": {
+      "id": "nfsu2-xtendedinput",
+      "name": "NFSU XtendedInput",
+      "author": "Berkay Yigit (Xan1242)",
+      "classification": "opcional",
+      "source_project": "https://github.com/xan1242/NFSU-XtendedInput",
+      "purpose": "Suporte a controle XInput com ícones modernos para NFS Underground 2."
+    },
+    "gtasa-ginput": {
+      "id": "gtasa-ginput",
+      "name": "GInput for GTA San Andreas",
+      "author": "CookiePLMonster (Silent)",
+      "classification": "opcional",
+      "source_project": "https://cookieplmonster.github.io/mods/gta-sa/",
+      "purpose": "Suporte a controle gamepad XInput/DualShock com ícones no GTA San Andreas."
+    }
+  }
+}

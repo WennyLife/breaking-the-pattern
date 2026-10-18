@@ -12,6 +12,11 @@ import subprocess
 HERE = Path(__file__).resolve().parent
 PROFILES = json.loads((HERE / 'game-profiles.json').read_text())['profiles']
 
+import importlib.util
+_op_spec = importlib.util.spec_from_file_location('btp_operations', HERE / 'btp-operations.py')
+_operations = importlib.util.module_from_spec(_op_spec)
+_op_spec.loader.exec_module(_operations)
+
 
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -60,6 +65,16 @@ def apply(game, exe, prefix, resources, data):
     if not profile:
         return
     backup = data / 'Backups/Profiles' / datetime.now().strftime('%Y%m%d-%H%M%S-%f')
+
+    # Executa o plano de operações e provisiona plugins ausentes com verificação
+    try:
+        plan = _operations.plan_operations({'arch': 'i386', 'imports': ['d3d9.dll']}, recipe=profile, target_game=game)
+        _operations.execute_operations(plan, game, prefix, resources, data)
+    except Exception as error:
+        warn_log = data / 'Registros/Operations-Warning.log'
+        warn_log.parent.mkdir(parents=True, exist_ok=True)
+        warn_log.write_text(str(error) + '\n')
+
     if profile['id'] == 'gtasa':
         set_values(executable.parent / 'mtld3d.conf', {'present.maxFps': 60}, backup)
     if profile['id'] == 'nfsu2':

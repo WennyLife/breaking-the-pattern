@@ -7,6 +7,14 @@
       "tested_executable_sha256": ["db8f7b6f6c5439a9fec17829efb0cf31771eaf967de08f99f9146d302ec5a680"],
       "windows": "win7",
       "renderer": "d3d9=mtld3d",
+      "components": ["nfsu2-widescreen-fix"],
+      "operations": [
+        "op.graphics.d3d9.mtld3d",
+        "op.cpu.x87sidecar",
+        "op.os.win7_legacy",
+        "op.storage.nfs_data_drive",
+        "op.plugin.nfsu2_widescreen"
+      ],
       "status": "Receita local; outras edições ainda não validadas"
     },
     "gta_sa.exe": {
@@ -16,6 +24,18 @@
       "windows": "win7",
       "renderer": "d3d9=mtld3d",
       "fps_cap": 60,
+      "components": ["gtasa-widescreen-fix", "gtasa-silentpatch"],
+      "operations": [
+        "op.graphics.d3d9.mtld3d",
+        "op.cpu.x87sidecar",
+        "op.os.win7_legacy",
+        "op.engine.gta_fps_cap_60",
+        "op.engine.gta_memory_arg",
+        "op.wine.gta_media_overrides",
+        "op.patch.gta_mtld3d_renderer",
+        "op.plugin.gtasa_widescreen",
+        "op.plugin.gtasa_silentpatch"
+      ],
       "status": "Receita local com executável fornecido pelo usuário; não substitui executáveis"
     }
   }

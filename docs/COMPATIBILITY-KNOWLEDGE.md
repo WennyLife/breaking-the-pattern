@@ -7,8 +7,10 @@ The product goal is **game folder → BREAK → independent game app**, with BTP
 - `scripts/compatibility-rules.json`: bundled, versioned reusable decisions for graphics API, i386/x87 and the existing legacy Windows heuristic. These rules select preparation settings; they do not certify gameplay.
 - `scripts/btp-rules.py`: a restricted evaluator. Rule data cannot run shell commands, patch binaries or download arbitrary files. First matching action wins for each setting.
 - `scripts/btp-peinfo.py`: extracts executable facts and applies the rule catalog.
+- `scripts/compatibility-components.json` and `scripts/btp-components.py`: manages official external plugins (Widescreen fixes, ASI loader, SilentPatch) with pinned SHA256, path-traversal validation, safe extraction and automatic local cache.
+- `scripts/btp-operations.py`: structured, composable compatibility operations with application conditions, declared conflicts, runtime compatibility and full backup/reversal support. Documented in [COMPATIBILITY-OPERATIONS.md](COMPATIBILITY-OPERATIONS.md) and [COMPATIBILITY-INVENTORY.md](COMPATIBILITY-INVENTORY.md).
 - `scripts/game-profiles.json` and `scripts/btp-game-profile.py`: edition-specific NFSU2/GTA recipes, with executable hash gates. These take precedence over generic suggestions. NFS's private D: mapping and GTA's renderer adjustment/60 FPS cap must not be applied to unrelated games.
-- `Registros/CompatibilityPlan.json` in each newly prepared game's data folder: records the executable hash, catalog hash/revision, matched rules and effective settings, including explicit/profile overrides. This is a preparation record, not proof of gameplay.
+- `Registros/CompatibilityPlan.json` and `Registros/OperationsPlan.json` in each newly prepared game's data folder: records the executable hash, catalog hash/revision, matched rules, applied operations, provisioned components and effective settings. This is a preparation record, not proof of gameplay.
 
 The catalog ships inside the signed BTP app and travels through the existing app update mechanism. No server or AI subscription is required to evaluate it. Existing game apps and original folders are not modified by updating BTP. The unchanged generic decisions were compared against the previous implementation; the reusable mechanism does not add a newly supported game.
 
