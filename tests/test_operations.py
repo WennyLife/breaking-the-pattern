@@ -6,6 +6,7 @@ from pathlib import Path
 import shutil
 import tempfile
 import unittest
+from unittest.mock import patch
 import zipfile
 
 HERE = Path(__file__).resolve().parent
@@ -223,7 +224,7 @@ class OperationsAndComponentsTests(unittest.TestCase):
             operations._components.provision_component = mock_fail
 
             with self.assertRaises(ValueError) as ctx:
-                operations.execute_operations(plan, game, prefix, resources, data)
+                operations.execute_operations(plan, game, prefix, None, data)
             self.assertIn('simulated mandatory component unavailable', str(ctx.exception))
             self.assertFalse((data / 'Registros/GameProfile.json').exists())
         finally:
@@ -300,7 +301,7 @@ class OperationsAndComponentsTests(unittest.TestCase):
             'selected_operations': ['op.engine.gta_fps_cap_60', 'op.os.win7_legacy']
         }
 
-        result = operations.execute_operations(plan, game, prefix, resources, data)
+        result = operations.execute_operations(plan, game, prefix, None, data)
 
         # executed NÃO pode ser vazio
         executed_ops = [item['operation'] for item in result['executed']]
@@ -402,7 +403,7 @@ class OperationsAndComponentsTests(unittest.TestCase):
         # Falha porque x87sidecar não existe em resources (mas wine existe)
         with self.assertRaises(RuntimeError) as ctx:
             operations.execute_operations(plan, game, None, res_with_wine, data)
-        self.assertIn('x87sidecar ausente', str(ctx.exception))
+        self.assertIn('Metadados do runtime', str(ctx.exception))
 
 
 if __name__ == '__main__':

@@ -118,6 +118,8 @@ def guard_path(target_root, path):
     except ValueError:
         raise ValueError(f'Caminho escapa da raiz privada de destino: {p}')
 
+    if '..' in rel.parts:
+        raise ValueError('Caminho de destino inválido: ' + str(p))
     cur = root_resolved
     for part in rel.parts:
         cur = cur / part

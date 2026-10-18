@@ -18,14 +18,15 @@ DONOR_RESOURCES="${BTP_RUNTIME_RESOURCES:-${BTP_DONOR_RESOURCES:-}}"
 APPS_DIR="${BTP_APPS_DIR:-$HOME/Applications}"
 
 TITLE="" GAME_DIR="" EXE="" ICON="" RENDERER="auto" WINVER="auto" GAME_ARGS="" OVERRIDES="dinput8=n,b;winemenubuilder.exe=" LINK=0
+RENDERER_EXPLICIT=0 WINVER_EXPLICIT=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --title) TITLE="$2"; shift 2 ;;
         --game-dir) GAME_DIR="$2"; shift 2 ;;
         --exe) EXE="$2"; shift 2 ;;
         --icon) ICON="$2"; shift 2 ;;
-        --renderer) RENDERER="$2"; shift 2 ;;
-        --winver) WINVER="$2"; shift 2 ;;
+        --renderer) RENDERER="$2"; RENDERER_EXPLICIT=1; shift 2 ;;
+        --winver) WINVER="$2"; WINVER_EXPLICIT=1; shift 2 ;;
         --args) GAME_ARGS="$2"; shift 2 ;;
         --overrides) OVERRIDES="$2"; shift 2 ;;
         --link) LINK=1; shift ;;
@@ -161,7 +162,8 @@ elif [[ -L "$GAME_IN_PREFIX" || ! -e "$GAME_IN_PREFIX" ]]; then
 else
     echo "      Jogo já instalado no prefixo; mantendo arquivos e saves existentes."
 fi
-if [[ -n "$WINVER" ]]; then
+configure_windows() {
+    [[ -n "$WINVER" ]] || return 0
     # Versão do Windows só para este .exe (AppDefaults), sem mexer no resto do prefixo.
     REG_LOG="$(mktemp "$DATA_DIR/Registros/config-windows-$(date +%Y%m%d-%H%M%S)-XXXXXX")"
     if ! WINEPREFIX="$DATA_DIR/prefix-metal" WINEARCH=wow64 WINELOADERNOEXEC=1 WINEDEBUG=-all \
@@ -176,7 +178,8 @@ if [[ -n "$WINVER" ]]; then
         echo "Falha ao concluir a configuração do Wine; app atual preservado. Registro: $REG_LOG" >&2
         exit 1
     fi
-fi
+}
+configure_windows
 [[ -f "$GAME_IN_PREFIX/$EXE" ]] || { echo "Executável não encontrado no prefixo: $GAME_IN_PREFIX/$EXE" >&2; exit 1; }
 EXE_DIR_REL="$(dirname "$EXE")"
 # O launcher usa a pasta do .exe como cwd, inclusive para executáveis aninhados.
@@ -196,6 +199,18 @@ fi
 if [[ -f "$SCRIPT_DIR/btp-game-profile.py" ]]; then
     python3 -I -B "$SCRIPT_DIR/btp-game-profile.py" --game "$GAME_IN_PREFIX" --exe "$EXE" \
         --prefix "$DATA_DIR/prefix-metal" --resources "$DONOR_RESOURCES" --data "$DATA_DIR"
+    if [[ -f "$DATA_DIR/Registros/GameProfile.json" ]]; then
+        # Values are shell-quoted by the bundled helper; only fixed variable names are exported.
+        eval "$(python3 -I -B "$SCRIPT_DIR/btp-game-profile.py" --export-launch-settings "$DATA_DIR/Registros/GameProfile.json")"
+        if [[ "$RENDERER_EXPLICIT" == 0 && -n "$OP_RENDERER" ]]; then RENDERER="$OP_RENDERER"; fi
+        if [[ "$WINVER_EXPLICIT" == 0 && -n "$OP_WINDOWS" && "$WINVER" != "$OP_WINDOWS" ]]; then
+            WINVER="$OP_WINDOWS"
+            configure_windows
+        fi
+        USE_X87="$OP_X87"
+        [[ -z "$OP_OVERRIDES" ]] || OVERRIDES+=";$OP_OVERRIDES"
+        [[ -n "$GAME_ARGS" ]] || GAME_ARGS="$OP_ARGS"
+    fi
 fi
 
 # Receita específica reproduzida em cópia isolada. O helper aceita apenas a
@@ -220,10 +235,6 @@ for RECORD in Runtime.json Attributions.txt; do
 done
 if [[ "$(basename "$EXE" | tr '[:upper:]' '[:lower:]')" == "gta_sa.exe" && -f "$SCRIPT_DIR/btp-game-profile.py" ]]; then
     python3 -I -B "$SCRIPT_DIR/btp-game-profile.py" --patch-gta-runtime "$APP_STAGE/Contents/Resources"
-    # Match the working GTA recipe: avoid the unavailable Wine WM reader and
-    # retain the game's native audio libraries. Only the prepared copy changes.
-    OVERRIDES+=";winegstreamer=;wmvcore=;vorbisFile=n,b;vorbisHooked=n,b;eax=n,b;ogg=n,b;vorbis=n,b;xinput1_3=b,n"
-    [[ -n "$GAME_ARGS" ]] || GAME_ARGS='-memory 1048576'
 fi
 
 # Valores escritos com %q para sobreviver a espaços, aspas e barras invertidas no launch-game.sh.
@@ -320,6 +331,9 @@ plutil -lint "$APP_STAGE/Contents/Info.plist"
 bash -n "$APP_STAGE/Contents/Resources/launch-game.sh"
 codesign --force --deep --sign - "$APP_STAGE"
 codesign --verify --deep --strict "$APP_STAGE"
+if [[ -f "$DATA_DIR/Registros/OperationsPlan.json" && -f "$SCRIPT_DIR/btp-game-profile.py" ]]; then
+    python3 -I -B "$SCRIPT_DIR/btp-game-profile.py" --finalize-app "$APP_STAGE" --data "$DATA_DIR"
+fi
 
 if [[ -e "$TARGET_APP" || -L "$TARGET_APP" ]]; then
     mkdir -p "$DATA_DIR/Backups/Apps"

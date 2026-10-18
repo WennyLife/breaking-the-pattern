@@ -110,7 +110,7 @@ OPERATIONS = {
         'conflicts_with': [],
         'runtime_compat': ['wine-cx-26.3.0-9'],
         'settings': {
-            'overrides': 'winegstreamer=;wmvcore=;vorbisfile=n,b;eax=n,b;ogg=n,b;vorbis=n,b;dinput8=n,b;xinput1_3=b,n;winemenubuilder.exe='
+            'overrides': 'winegstreamer=;wmvcore=;vorbisfile=n,b;vorbishooked=n,b;eax=n,b;ogg=n,b;vorbis=n,b;dinput8=n,b;xinput1_3=b,n;winemenubuilder.exe='
         },
         'evidence': 'Wine abortava em winegstreamer_create_wm_sync_reader na abertura de cutscenes.'
     },
@@ -255,27 +255,32 @@ def ensure_nfs_data_drive(game, prefix):
 
 
 def check_runtime_compatibility(op, resources):
-    """Garante que os requisitos de runtime declarados sejam estritamente atendidos quando resources for fornecido."""
-    if not resources or not Path(resources).exists():
-        return
+    """Check the actual pinned runtime, never infer a version from a directory name."""
+    if resources is None:
+        return  # Pure planning/unit execution has no runtime; production always supplies one.
     res = Path(resources).resolve()
     try:
-        if not any(res.iterdir()):
-            return
-    except OSError:
-        return
-
-    compat_list = op.get('runtime_compat', [])
-    for req in compat_list:
+        state = json.loads((res / 'Runtime.json').read_text())
+    except (OSError, ValueError) as error:
+        raise RuntimeError('Metadados do runtime ausentes ou inválidos: ' + str(res)) from error
+    for req in op.get('runtime_compat', []):
+        component = None
         if req == 'wine-cx-26.3.0-9':
-            if not (res / 'GameRuntime.app').exists() and not (res / 'wine').exists():
-                raise RuntimeError(f"Ambiente de execução incompatível para {op['id']}: Wine runtime ausente em {res}")
+            if state.get('components', {}).get('wine', {}).get('version') != 'cx-26.3.0-9':
+                raise RuntimeError('Versão Wine incompatível: ' + op['id'])
+            component = 'GameRuntime.app/Contents/MacOS/wine'
         elif req == 'x87sidecar-1.9.0':
-            if not (res / 'x87sidecar').exists():
-                raise RuntimeError(f"Ambiente de execução incompatível para {op['id']}: x87sidecar ausente em {res}")
+            if state.get('components', {}).get('x87', {}).get('version') != 'v1.9.0':
+                raise RuntimeError('Versão x87sidecar incompatível: ' + op['id'])
+            component = 'x87sidecar'
         elif req == 'mtld3d':
-            if not (res / 'wine/lib/wine/d3d9/mtld3d/i386-windows/d3d9.dll').exists() and not (res / 'GameRuntime.app').exists():
-                raise RuntimeError(f"Ambiente de execução incompatível para {op['id']}: renderizador mtld3d ausente em {res}")
+            component = 'wine/lib/wine/d3d9/mtld3d/i386-windows/d3d9.dll'
+        else:
+            raise RuntimeError('Requisito de runtime desconhecido: ' + req)
+        expected = state.get('files', {}).get(component)
+        candidate = res / component
+        if not expected or not candidate.is_file() or digest(candidate) != expected:
+            raise RuntimeError('Componente de runtime ausente ou alterado: ' + str(component))
 
 
 def execute_operations(plan, target_game, prefix, resources, data_dir):

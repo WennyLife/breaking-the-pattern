@@ -77,11 +77,11 @@ class Components(unittest.TestCase):
         config=game/'mtld3d.conf'; old='quality = 8\nshader.asyncCompile = true\npresent.maxFps = 0\n'
         config.write_text(old)
         with patch.object(profiles,'identify',return_value={'id':'gtasa'}):
-            profiles.apply(game,'gta_sa.exe',self.root/'prefix',self.root/'resources',data)
+            profiles.apply(game,'gta_sa.exe',self.root/'prefix',None,data)
         self.assertIn('quality = 8',config.read_text())
         self.assertIn('shader.asyncCompile = true',config.read_text())
         self.assertIn('present.maxFps = 60',config.read_text())
-        backups=list((data/'Backups/Profiles').rglob(config.name))
+        backups=list((data/'Backups/Operations').rglob(config.name))
         self.assertEqual(len(backups),1)
         self.assertEqual(backups[0].read_text(),old)
         self.assertEqual((game/'gta_sa.exe').read_bytes(),exe_bytes)

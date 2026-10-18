@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import shlex
 
 HERE = Path(__file__).resolve().parent
 PROFILES = json.loads((HERE / 'game-profiles.json').read_text())['profiles']
@@ -84,9 +85,6 @@ def apply(game, exe, prefix, resources, data):
         'year': datetime.utcfromtimestamp(pe.timestamp).year if pe.timestamp > 0 else 0
     }
 
-    if profile['id'] == 'gtasa':
-        set_values(executable.parent / 'mtld3d.conf', {'present.maxFps': 60}, backup)
-
     # Executa o plano de operações e provisiona plugins ausentes; falhas obrigatórias propagam
     plan = _operations.plan_operations(pe_info, recipe=profile, target_game=game)
     exec_res = _operations.execute_operations(plan, game, prefix, resources, data)
@@ -127,6 +125,34 @@ def apply(game, exe, prefix, resources, data):
     (data / 'Registros/GameProfile.json').write_text(json.dumps(record, ensure_ascii=False, indent=2) + '\n')
 
 
+def export_launch_settings(record):
+    settings = json.loads(Path(record).read_text()).get('launch_settings', {})
+    names = {'renderer': 'OP_RENDERER', 'windows': 'OP_WINDOWS',
+             'overrides': 'OP_OVERRIDES', 'game_args': 'OP_ARGS'}
+    lines = [name + '=' + shlex.quote(str(settings.get(key, ''))) for key, name in names.items()]
+    lines.append('OP_X87=' + ('1' if settings.get('x87') else '0'))
+    return '\n'.join(lines)
+
+
+def finalize_operations(data, app):
+    path = data / 'Registros/OperationsPlan.json'
+    if not path.is_file():
+        return
+    record = json.loads(path.read_text())
+    launcher = (app / 'Contents/Resources/launch-game.sh').read_text()
+    runtime = json.loads((app / 'Contents/Resources/Runtime.json').read_text())
+    for item in record.get('executed', []):
+        if item['action'] == 'launch_setting_declared':
+            item['action'] = 'consumed_by_launcher'
+        elif item['action'] == 'pending_stage':
+            if not runtime.get('per_game_adjustments'):
+                raise RuntimeError('Ajuste privado do renderizador não foi aplicado.')
+            item['action'] = 'applied_private_stage'
+    record['generated_app'] = str(app)
+    record['launcher_sha256'] = hashlib.sha256(launcher.encode()).hexdigest()
+    path.write_text(json.dumps(record, ensure_ascii=False, indent=2) + '\n')
+
+
 def patch_gta_runtime(resources):
     # Receita mtld3d usada pelo GTA local. Nunca modificar o motor compartilhado.
     path = resources / 'wine/lib/wine/d3d9/mtld3d/i386-windows/d3d9.dll'
@@ -153,11 +179,17 @@ def main():
     parser.add_argument('--check', type=Path)
     parser.add_argument('--settings', type=Path)
     parser.add_argument('--patch-gta-runtime', type=Path)
+    parser.add_argument('--export-launch-settings', type=Path)
+    parser.add_argument('--finalize-app', type=Path)
     for name in ('game', 'prefix', 'resources', 'data'):
         parser.add_argument('--' + name, type=Path)
     parser.add_argument('--exe')
     args = parser.parse_args()
-    if args.settings:
+    if args.export_launch_settings:
+        print(export_launch_settings(args.export_launch_settings))
+    elif args.finalize_app:
+        finalize_operations(args.data, args.finalize_app)
+    elif args.settings:
         profile = identify(args.settings)
         if profile:
             print('|'.join(({'nfsu2': 'NFSU2', 'gtasa': 'GTASA'}[profile['id']], profile['renderer'], profile['windows'])))
