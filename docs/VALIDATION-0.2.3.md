@@ -25,3 +25,7 @@ No game data, executables, saves or personal prefixes are distributed. Original 
 ## Release completion
 
 Testing resumed at the user request. Both new gameplay copies were confirmed by the user. Public installer and signed feed verification are recorded separately after publication. No other physical Mac or sustained FPS benchmark is claimed.
+
+## Public delivery verified
+
+GitHub Actions39160515729 completed the tested build and published the ZIP/DMG at https://github.com/WennyLife/breaking-the-pattern/releases/tag/v0.2.3 . Both public installers were downloaded and verified;56 source hashes matched the reviewed tag. The exact public ZIP was signed locally and offered through the production feed. The installed BTP updated from0.2.2 to0.2.3 build10 and relaunched through Sparkle, retaining the library and a verified previous-version backup. The central archive holds those exact public installers. Original game files checked again:1,585 unchanged.
