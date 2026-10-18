@@ -94,6 +94,148 @@ def validate_zip_payload(archive, component):
     return members
 
 
+def guard_path(target_root, path):
+    """Verifica estritamente que nenhum ancestral ou componente do caminho seja link simbólico,
+    e que o destino final permaneça sob a raiz privada alvo."""
+    root_resolved = Path(target_root).resolve()
+    p = Path(path)
+    if not p.is_absolute():
+        p = root_resolved / p
+    else:
+        p_str = str(p)
+        root_str = str(root_resolved)
+        if p_str.startswith('/var/') and root_str.startswith('/private/var/'):
+            p = Path('/private' + p_str)
+        elif p_str.startswith('/tmp/') and root_str.startswith('/private/tmp/'):
+            p = Path('/private' + p_str)
+        elif p_str.startswith('/private/var/') and root_str.startswith('/var/'):
+            root_resolved = Path('/private' + root_str)
+        elif p_str.startswith('/private/tmp/') and root_str.startswith('/tmp/'):
+            root_resolved = Path('/private' + root_str)
+
+    try:
+        rel = p.relative_to(root_resolved)
+    except ValueError:
+        raise ValueError(f'Caminho escapa da raiz privada de destino: {p}')
+
+    cur = root_resolved
+    for part in rel.parts:
+        cur = cur / part
+        if os.path.islink(cur):
+            raise ValueError(f'Link simbólico detectado no caminho de destino: {cur}. Recusando escrita fora da raiz privada.')
+        if cur.exists():
+            try:
+                cur.resolve().relative_to(root_resolved)
+            except ValueError:
+                raise ValueError(f'Caminho escapa da raiz privada de destino: {cur}')
+    return cur
+
+
+class ComponentTransaction:
+    """Controla transação de escrita de arquivos com rollback automático em falhas."""
+    def __init__(self, target_root, backup_root):
+        self.target_root = Path(target_root).resolve()
+        self.backup_root = Path(backup_root).resolve()
+        self.created_files = []
+        self.created_dirs = []
+        self.backups = {}
+        self.committed = False
+
+    def stage_file_copy(self, src_file, dest_file):
+        dest_path = guard_path(self.target_root, dest_file)
+        src_path = Path(src_file).resolve()
+        if dest_path in self.created_files:
+            pass
+        elif dest_path.is_file() and not os.path.islink(dest_path):
+            if dest_path not in self.backups:
+                backup_path = self.backup_root / dest_path.relative_to(self.target_root)
+                backup_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(dest_path, backup_path)
+                self.backups[dest_path] = backup_path
+        else:
+            self._ensure_parent_dirs(dest_path)
+            self.created_files.append(dest_path)
+        shutil.copy2(src_path, dest_path)
+
+    def _ensure_parent_dirs(self, dest_path):
+        d = dest_path.parent
+        dirs_to_create = []
+        while d != self.target_root and not d.exists():
+            dirs_to_create.append(d)
+            d = d.parent
+        for created_d in reversed(dirs_to_create):
+            created_d.mkdir(parents=True, exist_ok=True)
+            self.created_dirs.append(created_d)
+
+    def stage_file_write(self, dest_file, content):
+        dest_path = guard_path(self.target_root, dest_file)
+        if dest_path in self.created_files:
+            pass
+        elif dest_path.is_file() and not os.path.islink(dest_path):
+            if dest_path not in self.backups:
+                backup_path = self.backup_root / dest_path.relative_to(self.target_root)
+                backup_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(dest_path, backup_path)
+                self.backups[dest_path] = backup_path
+        else:
+            self._ensure_parent_dirs(dest_path)
+            self.created_files.append(dest_path)
+        dest_path.write_bytes(content)
+
+    def rollback(self):
+        for f in reversed(self.created_files):
+            try:
+                if f.is_file() or os.path.islink(f):
+                    f.unlink()
+            except OSError:
+                pass
+        for dest_path, backup_path in self.backups.items():
+            try:
+                if backup_path.is_file():
+                    dest_path.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(backup_path, dest_path)
+            except OSError:
+                pass
+        for d in reversed(self.created_dirs):
+            try:
+                if d.is_dir() and not any(d.iterdir()):
+                    d.rmdir()
+            except OSError:
+                pass
+
+    def commit(self):
+        self.committed = True
+
+
+def preflight_target_paths(component, target_dir):
+    """Valida estritamente que nenhum caminho de destino ou diretório intermediário
+    seja link simbólico (mesmo que quebrado), e que nenhum arquivo escape da raiz."""
+    target_root = Path(target_dir).resolve()
+    if not target_root.is_dir():
+        raise NotADirectoryError(f'Diretório de destino inválido: {target_root}')
+
+    mapping = component.get('mapping', {})
+    paths_to_verify = list(mapping.values())
+    if component.get('id') == 'gtasa-widescreen-fix':
+        paths_to_verify.append('vorbisHooked.dll')
+
+    for rel in paths_to_verify:
+        rel_posix = PurePosixPath(rel)
+        if rel_posix.is_absolute() or '..' in rel_posix.parts or '\\' in rel:
+            raise ValueError(f'Caminho de destino inválido ou escape detectado: {rel}')
+
+        cur = target_root
+        for part in rel_posix.parts:
+            cur = cur / part
+            if os.path.islink(cur):
+                raise ValueError(f'Link simbólico detectado no caminho de destino: {cur}. Recusando escrita fora da raiz privada.')
+            if cur.exists():
+                try:
+                    cur.resolve().relative_to(target_root)
+                except ValueError:
+                    raise ValueError(f'Caminho de destino escapa da raiz privada: {cur}')
+
+
 def is_satisfied(component_id, target_dir):
     """Verifica se os arquivos necessários do componente já estão presentes no destino."""
     components = load_manifest()
@@ -110,8 +252,8 @@ def is_satisfied(component_id, target_dir):
     return True
 
 
-def provision_component(component_id, target_dir, backup_root=None, cache_dir=None):
-    """Instala o componente no diretório de destino com backup de quaisquer arquivos preexistentes."""
+def provision_component(component_id, target_dir, backup_root=None, cache_dir=None, transaction=None):
+    """Instala o componente no diretório de destino com preflight, staging e transação com rollback."""
     components = load_manifest()
     component = components.get(component_id)
     if not component:
@@ -121,7 +263,9 @@ def provision_component(component_id, target_dir, backup_root=None, cache_dir=No
     if not target.is_dir():
         raise NotADirectoryError(f'Diretório de destino inexistente: {target}')
 
-    # Se já estiver satisfeito, registra que nenhuma alteração é necessária
+    # Preflight estrito antes de qualquer escrita ou backup
+    preflight_target_paths(component, target)
+
     if is_satisfied(component_id, target):
         return {
             'component_id': component_id,
@@ -135,47 +279,68 @@ def provision_component(component_id, target_dir, backup_root=None, cache_dir=No
     backup_dir = (Path(backup_root) if backup_root else target) / 'Backups/Components' / f'{component_id}-{timestamp}'
 
     installed = []
-    backups = []
+    own_transaction = False
+    tx = transaction
+    if tx is None:
+        tx = ComponentTransaction(target, backup_dir)
+        own_transaction = True
 
-    with zipfile.ZipFile(archive_path) as archive:
-        validate_zip_payload(archive, component)
-        mapping = component.get('mapping', {})
+    try:
+        with tempfile.TemporaryDirectory(prefix='btp-component-stage-') as stage_tmp:
+            stage_path = Path(stage_tmp)
+            with zipfile.ZipFile(archive_path) as archive:
+                validate_zip_payload(archive, component)
+                archive.extractall(stage_path)
 
-        # Caso especial do GTA SA vorbisFile -> vorbisHooked:
-        # Se vorbisFile.dll preexistir e não for o ASI loader, guardá-lo como vorbisHooked.dll
-        if component_id == 'gtasa-widescreen-fix':
-            target_vorbis = target / 'vorbisFile.dll'
-            hooked_vorbis = target / 'vorbisHooked.dll'
-            if target_vorbis.is_file() and not hooked_vorbis.is_file():
-                # É a DLL original do jogo que precisa ser preservada para forward calls
-                backup_dir.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(target_vorbis, backup_dir / 'vorbisFile.dll.orig')
-                shutil.copy2(target_vorbis, hooked_vorbis)
-                backups.append(str(backup_dir / 'vorbisFile.dll.orig'))
+            mapping = component.get('mapping', {})
 
-        for src_in_zip, rel_dest in mapping.items():
-            dest_file = target / rel_dest
-            try:
-                content = archive.read(src_in_zip)
-            except KeyError:
-                continue
+            # Exige que TODOS os membros mapeados estejam presentes no ZIP descompactado ANTES de tocar o alvo
+            missing_members = [src for src in mapping.keys() if not (stage_path / src).is_file()]
+            if missing_members:
+                raise ValueError(f"Componente {component_id} incompleto: membros ausentes no pacote ZIP: {missing_members}")
 
-            if dest_file.is_file():
-                backup_dir.mkdir(parents=True, exist_ok=True)
-                b_file = backup_dir / rel_dest
-                b_file.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(dest_file, b_file)
-                backups.append(str(b_file))
+            if component_id == 'gtasa-widescreen-fix':
+                target_vorbis = target / 'vorbisFile.dll'
+                hooked_vorbis = target / 'vorbisHooked.dll'
+                if target_vorbis.is_file() and not hooked_vorbis.is_file():
+                    tx.stage_file_copy(target_vorbis, hooked_vorbis)
 
-            dest_file.parent.mkdir(parents=True, exist_ok=True)
-            dest_file.write_bytes(content)
-            installed.append(str(dest_file.relative_to(target)))
+            for src_in_zip, rel_dest in mapping.items():
+                staged_file = stage_path / src_in_zip
 
+                dest_file = target / rel_dest
+                if dest_file.is_file() and dest_file.suffix.lower() == '.ini':
+                    # Preserva configurações existentes do usuário
+                    continue
+
+                content = staged_file.read_bytes()
+
+                if component_id == 'nfsu2-widescreen-fix' and rel_dest == 'scripts/NFSUnderground2.WidescreenFix.ini':
+                    ini_lines = content.decode('latin-1').splitlines()
+                    for i, line in enumerate(ini_lines):
+                        k = line.split('=', 1)[0].strip()
+                        if k == 'WindowedMode':
+                            ini_lines[i] = 'WindowedMode = 4'
+                        elif k == 'FPSLimit':
+                            ini_lines[i] = 'FPSLimit = 0'
+                    content = ('\n'.join(ini_lines) + '\n').encode('latin-1')
+
+                tx.stage_file_write(dest_file, content)
+                installed.append(str(dest_file.relative_to(target)))
+
+        if own_transaction:
+            tx.commit()
+    except Exception as error:
+        if own_transaction:
+            tx.rollback()
+        raise error
+
+    backups_list = [str(b) for b in tx.backups.values()]
     return {
         'component_id': component_id,
         'status': 'provisioned',
         'installed_files': installed,
-        'backups': backups,
+        'backups': backups_list,
         'version': component.get('version'),
         'sha256': component['sha256']
     }

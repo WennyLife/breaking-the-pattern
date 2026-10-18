@@ -32,16 +32,6 @@ def digest(path):
 
 
 OPERATIONS = {
-    'op.graphics.d3d9.mtld3d': {
-        'id': 'op.graphics.d3d9.mtld3d',
-        'name': 'Renderizador Metal para Direct3D 9 (mtld3d)',
-        'category': 'graphics',
-        'when': {'uses_any': ['d3d9.dll']},
-        'conflicts_with': ['op.graphics.d3d11.dxmt', 'op.graphics.d3d12.gptk'],
-        'runtime_compat': ['wine-cx-26.3.0-9'],
-        'settings': {'renderer': 'd3d9=mtld3d'},
-        'evidence': 'Sessões validadas independentes de NFSU2 e GTA SA em 2026-10-18.'
-    },
     'op.graphics.d3d11.dxmt': {
         'id': 'op.graphics.d3d11.dxmt',
         'name': 'Renderizador Metal para Direct3D 10/11 (DXMT)',
@@ -51,6 +41,16 @@ OPERATIONS = {
         'runtime_compat': ['wine-cx-26.3.0-9'],
         'settings': {'renderer': 'dxgi=dxmt'},
         'evidence': 'Perfil validado de Splinter Cell Conviction e jogos D3D11.'
+    },
+    'op.graphics.d3d9.mtld3d': {
+        'id': 'op.graphics.d3d9.mtld3d',
+        'name': 'Renderizador Metal para Direct3D 9 (mtld3d)',
+        'category': 'graphics',
+        'when': {'uses_any': ['d3d9.dll']},
+        'conflicts_with': ['op.graphics.d3d11.dxmt', 'op.graphics.d3d12.gptk'],
+        'runtime_compat': ['wine-cx-26.3.0-9'],
+        'settings': {'renderer': 'd3d9=mtld3d'},
+        'evidence': 'Sessões validadas independentes de NFSU2 e GTA SA em 2026-10-18.'
     },
     'op.cpu.x87sidecar': {
         'id': 'op.cpu.x87sidecar',
@@ -210,34 +210,177 @@ def plan_operations(pe_info, recipe=None, target_game=None):
     }
 
 
+class PlanTransaction:
+    """Coordena transações atômicas de todas as operações usando uma única transação unificada."""
+    def __init__(self, target_root, backup_root):
+        self.target_root = Path(target_root).resolve()
+        self.backup_root = Path(backup_root).resolve()
+        self.comp_tx = _components.ComponentTransaction(self.target_root, self.backup_root)
+        self.committed = False
+
+    def stage_conf_update(self, path, values):
+        p = _components.guard_path(self.target_root, path)
+        old_text = p.read_text() if p.is_file() else ''
+        lines = old_text.splitlines()
+        for k, v in values.items():
+            positions = [i for i, line in enumerate(lines) if line.split('=', 1)[0].strip() == k]
+            if positions:
+                for i in positions:
+                    lines[i] = f'{k} = {v}'
+            else:
+                lines.append(f'{k} = {v}')
+        new_text = '\n'.join(lines) + '\n'
+        if old_text != new_text:
+            self.comp_tx.stage_file_write(p, new_text.encode('utf-8'))
+
+    def rollback(self):
+        self.comp_tx.rollback()
+
+    def commit(self):
+        self.comp_tx.commit()
+        self.committed = True
+
+
+def ensure_nfs_data_drive(game, prefix):
+    alias = Path(prefix) / 'dosdevices/d:'
+    if alias.exists() or alias.is_symlink():
+        return False
+    try:
+        game.relative_to(Path(prefix) / 'drive_c')
+    except ValueError:
+        return False
+    alias.parent.mkdir(parents=True, exist_ok=True)
+    alias.symlink_to(os.path.relpath(game, alias.parent), target_is_directory=True)
+    return True
+
+
+def check_runtime_compatibility(op, resources):
+    """Garante que os requisitos de runtime declarados sejam estritamente atendidos quando resources for fornecido."""
+    if not resources or not Path(resources).exists():
+        return
+    res = Path(resources).resolve()
+    try:
+        if not any(res.iterdir()):
+            return
+    except OSError:
+        return
+
+    compat_list = op.get('runtime_compat', [])
+    for req in compat_list:
+        if req == 'wine-cx-26.3.0-9':
+            if not (res / 'GameRuntime.app').exists() and not (res / 'wine').exists():
+                raise RuntimeError(f"Ambiente de execução incompatível para {op['id']}: Wine runtime ausente em {res}")
+        elif req == 'x87sidecar-1.9.0':
+            if not (res / 'x87sidecar').exists():
+                raise RuntimeError(f"Ambiente de execução incompatível para {op['id']}: x87sidecar ausente em {res}")
+        elif req == 'mtld3d':
+            if not (res / 'wine/lib/wine/d3d9/mtld3d/i386-windows/d3d9.dll').exists() and not (res / 'GameRuntime.app').exists():
+                raise RuntimeError(f"Ambiente de execução incompatível para {op['id']}: renderizador mtld3d ausente em {res}")
+
+
 def execute_operations(plan, target_game, prefix, resources, data_dir):
-    """Executa as operações selecionadas no plano, garantindo backups de qualquer modificação."""
-    target = Path(target_game)
-    pfx = Path(prefix)
-    res = Path(resources)
-    data = Path(data_dir)
+    """Executa as operações selecionadas no plano com atomicidade, transações e rollback."""
+    target = Path(target_game).resolve()
+    pfx = Path(prefix).resolve() if prefix else None
+    res = Path(resources).resolve() if resources else None
+    data = Path(data_dir).resolve()
 
     timestamp = datetime.now().strftime('%Y%m%d-%H%M%S-%f')
     backup_root = data / 'Backups/Operations' / timestamp
     backup_root.mkdir(parents=True, exist_ok=True)
 
+    plan_tx = PlanTransaction(target, backup_root)
     executed = []
+    launch_settings = {}
+    manifest_components = _components.load_manifest()
 
-    for op_id in plan.get('selected_operations', []):
-        op = OPERATIONS.get(op_id)
-        if not op:
-            continue
+    try:
+        for op_id in plan.get('selected_operations', []):
+            op = OPERATIONS.get(op_id)
+            if not op:
+                continue
 
-        # Operações de plugin: obtenção automática se necessário
-        if 'component_id' in op:
-            comp_id = op['component_id']
-            if not _components.is_satisfied(comp_id, target):
-                prov_res = _components.provision_component(comp_id, target, backup_root=backup_root)
-                executed.append({'operation': op_id, 'action': 'provisioned', 'component': prov_res})
+            # Valida estritamente compatibilidade de runtime se resources for fornecido
+            check_runtime_compatibility(op, res)
+
+            if 'component_id' in op:
+                comp_id = op['component_id']
+                comp_meta = manifest_components.get(comp_id, {})
+                classification = comp_meta.get('classification', 'necessario')
+                try:
+                    if not _components.is_satisfied(comp_id, target):
+                        prov_res = _components.provision_component(
+                            comp_id, target, backup_root=backup_root, transaction=plan_tx.comp_tx
+                        )
+                        executed.append({'operation': op_id, 'action': 'provisioned', 'component': prov_res})
+                    else:
+                        executed.append({'operation': op_id, 'action': 'already_satisfied'})
+                except Exception as comp_err:
+                    if classification == 'necessario':
+                        raise comp_err
+                    else:
+                        warn_log = data / 'Registros/Operations-Warning.log'
+                        warn_log.parent.mkdir(parents=True, exist_ok=True)
+                        with warn_log.open('a') as wf:
+                            wf.write(f'Componente opcional {comp_id} falhou: {comp_err}\n')
+
+            elif op_id == 'op.engine.gta_fps_cap_60':
+                conf_file = target / 'mtld3d.conf'
+                plan_tx.stage_conf_update(conf_file, {'present.maxFps': 60, 'present.maxFrameLatency': 1})
+                sp_ini = target / 'scripts/SilentPatchSA.ini'
+                if sp_ini.is_file():
+                    plan_tx.stage_conf_update(sp_ini, {'FPSLimit': 60})
+                executed.append({'operation': op_id, 'action': 'applied', 'details': {'present.maxFps': 60}})
+
+            elif op_id == 'op.os.win7_legacy':
+                launch_settings['windows'] = 'win7'
+                executed.append({'operation': op_id, 'action': 'launch_setting_declared', 'details': {'windows': 'win7'}})
+
+            elif op_id == 'op.storage.nfs_data_drive':
+                drive_ok = False
+                if pfx:
+                    drive_ok = ensure_nfs_data_drive(target, pfx)
+                executed.append({'operation': op_id, 'action': 'applied' if drive_ok else 'verified', 'details': {'drive': 'd:'}})
+
+            elif op_id == 'op.wine.gta_media_overrides':
+                overrides = op.get('settings', {}).get('overrides', '')
+                launch_settings['overrides'] = overrides
+                executed.append({'operation': op_id, 'action': 'launch_setting_declared', 'details': {'overrides': overrides}})
+
+            elif op_id == 'op.engine.gta_memory_arg':
+                launch_settings['game_args'] = '-memory 1048576'
+                executed.append({'operation': op_id, 'action': 'launch_setting_declared', 'details': {'argument': '-memory 1048576'}})
+
+            elif op_id == 'op.patch.gta_mtld3d_renderer':
+                executed.append({'operation': op_id, 'action': 'pending_stage', 'details': {'target': 'APP_STAGE/Contents/Resources'}})
+
+            elif op_id == 'op.cpu.x87sidecar':
+                launch_settings['x87'] = True
+                executed.append({'operation': op_id, 'action': 'launch_setting_declared', 'details': {'x87': True}})
+
+            elif op_id in ('op.graphics.d3d9.mtld3d', 'op.graphics.d3d11.dxmt'):
+                renderer = op.get('settings', {}).get('renderer', '')
+                launch_settings['renderer'] = renderer
+                executed.append({'operation': op_id, 'action': 'launch_setting_declared', 'details': op.get('settings', {})})
+
             else:
-                executed.append({'operation': op_id, 'action': 'already_satisfied'})
+                executed.append({'operation': op_id, 'action': 'evaluated'})
 
-    plan_record = dict(plan, executed=executed, timestamp=timestamp)
+        plan_tx.commit()
+
+    except Exception as error:
+        plan_tx.rollback()
+        raise error
+
+    all_backups = list(plan_tx.comp_tx.backups.values())
+    plan_record = dict(
+        plan,
+        executed=executed,
+        launch_settings=launch_settings,
+        timestamp=timestamp,
+        reversibility=True,
+        backup_files=[str(b) for b in all_backups]
+    )
     plan_file = data / 'Registros/OperationsPlan.json'
     plan_file.parent.mkdir(parents=True, exist_ok=True)
     plan_file.write_text(json.dumps(plan_record, indent=2, ensure_ascii=False) + '\n')

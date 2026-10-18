@@ -18,6 +18,11 @@ _operations = importlib.util.module_from_spec(_op_spec)
 _op_spec.loader.exec_module(_operations)
 
 
+_pe_spec = importlib.util.spec_from_file_location('btp_peinfo', HERE / 'btp-peinfo.py')
+_peinfo = importlib.util.module_from_spec(_pe_spec)
+_pe_spec.loader.exec_module(_peinfo)
+
+
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -43,7 +48,9 @@ def set_values(path, values, backup):
     if old != new:
         if path.exists():
             backup.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(path, backup / path.name)
+            backup_file = backup / path.name
+            if not backup_file.exists():
+                shutil.copy2(path, backup_file)
         path.write_text(new)
 
 
@@ -66,19 +73,30 @@ def apply(game, exe, prefix, resources, data):
         return
     backup = data / 'Backups/Profiles' / datetime.now().strftime('%Y%m%d-%H%M%S-%f')
 
-    # Executa o plano de operações e provisiona plugins ausentes com verificação
-    try:
-        plan = _operations.plan_operations({'arch': 'i386', 'imports': ['d3d9.dll']}, recipe=profile, target_game=game)
-        _operations.execute_operations(plan, game, prefix, resources, data)
-    except Exception as error:
-        warn_log = data / 'Registros/Operations-Warning.log'
-        warn_log.parent.mkdir(parents=True, exist_ok=True)
-        warn_log.write_text(str(error) + '\n')
+    # Extrai fatos PE reais do executável do jogo; falha estritamente se não for PE válido
+    raw = executable.read_bytes()
+    pe = _peinfo.PE(raw)
+    pe_info = {
+        'arch': 'x64' if pe.is64 else 'i386',
+        'subsystem': pe.subsystem,
+        'timestamp': pe.timestamp,
+        'imports': pe.imports(),
+        'year': datetime.utcfromtimestamp(pe.timestamp).year if pe.timestamp > 0 else 0
+    }
 
     if profile['id'] == 'gtasa':
         set_values(executable.parent / 'mtld3d.conf', {'present.maxFps': 60}, backup)
+
+    # Executa o plano de operações e provisiona plugins ausentes; falhas obrigatórias propagam
+    plan = _operations.plan_operations(pe_info, recipe=profile, target_game=game)
+    exec_res = _operations.execute_operations(plan, game, prefix, resources, data)
+    launch_settings = exec_res.get('launch_settings', {})
+
     if profile['id'] == 'nfsu2':
-        relative = game.relative_to(prefix / 'drive_c')
+        try:
+            relative = game.relative_to(prefix / 'drive_c')
+        except ValueError:
+            relative = Path('Games') / game.name
         windows = 'C:\\' + str(relative).replace('/', '\\') + '\\'
         added_data_drive = ensure_nfs_data_drive(game, prefix)
         alias = prefix / 'dosdevices/d:'
@@ -105,7 +123,7 @@ def apply(game, exe, prefix, resources, data):
                                    env=env, stdout=output, stderr=output, check=True, timeout=40)
             subprocess.run([str(resources / 'wine/bin/wineserver'), '-w'], env=env,
                            stdout=output, stderr=output, check=True, timeout=40)
-    record = dict(profile, executable_sha256=digest(executable), source_executable_preserved=True)
+    record = dict(profile, executable_sha256=digest(executable), source_executable_preserved=True, launch_settings=launch_settings)
     (data / 'Registros/GameProfile.json').write_text(json.dumps(record, ensure_ascii=False, indent=2) + '\n')
 
 
