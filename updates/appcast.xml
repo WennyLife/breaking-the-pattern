@@ -1,8 +1,16 @@
-<?xml version="1.0" encoding="utf-8"?>
-<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+<?xml version='1.0' encoding='utf-8'?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
   <channel>
     <title>Breaking the Pattern Updates</title>
-    <link>https://github.com/WennyLife/breaking-the-pattern</link>
-    <description>The first binary preview is prepared locally. Signed update items will be added after their release assets are published.</description>
+    <link>https://github.com/WennyLife/breaking-the-pattern/releases</link>
+    <item>
+      <title>BTP 0.2.3</title>
+      <pubDate>Sun, 18 Oct 2026 19:51:44 +0000</pubDate>
+      <sparkle:version>10</sparkle:version>
+      <sparkle:shortVersionString>0.2.3</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+      <description>English: Automatic required components and tested NFSU2/GTA recipes. In-app signed updates, English/Portuguese interface, independent compatibility runtime, edition-specific NFS Underground 2 and GTA San Andreas recipes. No games included. Português: atualizações assinadas pelo app, interface em inglês/português, motor independente e receitas por edição para NFSU2/GTA SA. Sem jogos incluídos. Splinter Cell remains experimental and is not part of this initial release.</description>
+      <enclosure url="https://github.com/WennyLife/breaking-the-pattern/releases/download/v0.2.3/Breaking-the-Pattern-0.2.3.zip" length="33526011" type="application/octet-stream" sparkle:edSignature="YxrD2KZKYx0ZkVs7oe7fTiENcdZA+2GieZtu1s4eN+PTErWQFS2WAB5llp5dOScZMQgLVNRnOSVn9dG754XhAA==" />
+    </item>
   </channel>
 </rss>
