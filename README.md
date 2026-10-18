@@ -8,7 +8,7 @@
 
 [Releases](https://github.com/WennyLife/breaking-the-pattern/releases) · [Português](README.pt-BR.md) · [How it works](docs/METODO-E-VALIDACAO.md)
 
-**0.2.3 Candidate · English / Português · macOS 15+ · Apple Silicon**
+**0.2.3 · English / Português · macOS 15+ · Apple Silicon**
 
 </div>
 
@@ -18,7 +18,7 @@ BTP prepares a separate Mac launcher and a Wine compatibility environment for a 
 
 ## Getting started
 
-The 0.2.3 candidate is built and verified locally. Testing was paused by the user on 2026-10-18 before final GTA confirmation and public installer publication. No 0.2.3 installer or update offer has been published yet. The steps below describe the intended release flow.
+Download the current [DMG](https://github.com/WennyLife/breaking-the-pattern/releases/latest) or ZIP from Releases. Install BTP, select your own supported game folder and click **BREAK**. BTP obtains and verifies the compatibility components automatically; no manual plugins or code are required.
 
 1. Download the current DMG or ZIP from [Releases](https://github.com/WennyLife/breaking-the-pattern/releases). Copy BTP to your Applications folder.
 2. Open BTP and select your game folder. Install Rosetta through macOS if it is missing. Internet access is needed for the first runtime download (about 235 MB; roughly 1.3 GB expanded).
@@ -41,7 +41,7 @@ BTP combines [reusable compatibility rules and edition-specific recipes](docs/CO
 
 The accepted executable hashes and recipe versions are in [`scripts/game-profiles.json`](scripts/game-profiles.json). Unknown editions are rejected before preparing a runtime. An edition match is a compatibility gate, not an authenticity or malware check. Required WidescreenFix/ASI components and GTA SilentPatch are obtained automatically with pinned checksums. Existing configuration files are preserved. Optional controller mods are not part of the automatic preparation.
 
-Private NFSU2 and GTA SA preparation copies were generated from game folders with the manual ASI/Widescreen/SilentPatch plugins removed. The bundled helpers obtained the required components automatically using their pinned checksums. Preparation was repeated with the final launcher settings, private renderer adjustment and GTA 60 FPS cap. NFSU2 driving, sound and commands were confirmed by the user in the new generated copy. See the [0.2.3 validation record](docs/VALIDATION-0.2.3.md) for the final gameplay results and exact limits. This does not guarantee a sustained frame rate, every mission, or every Mac.
+Private NFSU2 and GTA SA preparation copies were generated from game folders with the manual ASI/Widescreen/SilentPatch plugins removed. The bundled helpers obtained the required components automatically using their pinned checksums. Preparation was repeated with the final launcher settings, private renderer adjustment and GTA 60 FPS cap. The user confirmed NFSU2 driving and GTA SA CJ movement, with normal sound and commands in both newly generated copies. See the [0.2.3 validation record](docs/VALIDATION-0.2.3.md) for the final gameplay results and exact limits. This does not guarantee a sustained frame rate, every mission, or every Mac.
 
 ## Updates inside BTP
 

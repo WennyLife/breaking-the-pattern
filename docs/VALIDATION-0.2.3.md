@@ -13,7 +13,7 @@ Date: 2026-10-18. Host: MacBook Pro M5 Pro, 24 GB. Initial scope: accepted execu
 ## Gameplay
 
 - NFSU2 Release Validation: user confirmed driving with normal sound and commands on the new generated copy.
-- GTA Release Validation: final gameplay confirmation pending. The user retracted an accidental black-screen/error survey answer; do not treat it as a confirmed failure. Tests were explicitly paused on 2026-10-18 at 12:12 before receiving the corrected gameplay answer.
+- GTA Release Validation: after resuming, the user confirmed a normal playable session with CJ movement, sound and commands in the new copy generated without manual plugins.
 - Earlier independent GTA recipe validation already reached gameplay, sound and CJ movement. The new plugin-free source preparation is validated separately above.
 
 ## Distribution and practical limits
@@ -22,6 +22,6 @@ The public release workflow runs tests, builds the app, verifies extracted ZIP/a
 
 No game data, executables, saves or personal prefixes are distributed. Original installed games and saves are outside the test prefixes. No new sustained FPS benchmark, physical controller mapping, full campaign or second physical Mac is claimed. BTP is ad hoc signed, not Apple-notarized; first launch on another Mac may require local user approval. Rosetta and internet are required for the first preparation. Unknown editions are not promised compatible. Splinter Cell remains outside this initial release.
 
-## Paused checkpoint — 2026-10-18 12:13
+## Release completion
 
-No public installers, tag or new appcast item have been published. The release pipeline has been implemented and reviewed but has not run on GitHub Actions yet. Installed/archived current BTP remains 0.2.2 build9. Candidate 0.2.3 build10 is saved separately. Original game files checked: 1,585, no differences. Test games/launchers and the updater check window were closed; no test-specific sleep assertion remains. Claude still owns system/display wake locks and was preserved. Resume only when the user asks.
+Testing resumed at the user request. Both new gameplay copies were confirmed by the user. Public installer and signed feed verification are recorded separately after publication. No other physical Mac or sustained FPS benchmark is claimed.
