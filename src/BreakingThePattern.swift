@@ -79,20 +79,12 @@ let knownPresets: [GamePreset] = [
         physicsCapFPS: 60
     ),
     GamePreset(
-        id: "codbo2",
-        icon: "🎖️",
-        title: "Call of Duty: Black Ops II",
-        executable: "t6sp.exe",
-        requiredFolders: ["zone"],
-        physicsCapFPS: nil
-    ),
-    GamePreset(
-        id: "codbo",
-        icon: "🎖️",
-        title: "Call of Duty: Black Ops",
-        executable: "BlackOps.exe",
-        requiredFolders: ["zone"],
-        physicsCapFPS: nil
+        id: "splintercell",
+        icon: "🕶️",
+        title: "Splinter Cell Conviction Complete",
+        executable: "src/system/Conviction_game.exe",
+        requiredFolders: ["src"],
+        physicsCapFPS: 60
     ),
     GamePreset(
         id: "nfsu2",
@@ -162,17 +154,9 @@ final class BTPViewModel: ObservableObject {
         try? fm.createDirectory(at: appSupportURL, withIntermediateDirectories: true)
 
         if let data = try? Data(contentsOf: libraryFileURL),
-           var saved = try? JSONDecoder().decode([GameProfile].self, from: data) {
-            // Upgrade legacy or incorrect profiles if needed
-            for i in 0..<saved.count {
-                if saved[i].id == "codbo" && (saved[i].folderPath?.contains("Black Ops II") == true || saved[i].folderPath?.contains("Black_Ops_II") == true) {
-                    saved[i].id = "codbo2"
-                    saved[i].title = "Call of Duty: Black Ops II"
-                    saved[i].executable = "t6sp.exe"
-                    saved[i].requiredFolders = ["zone"]
-                }
-            }
-            self.profiles = saved
+           let saved = try? JSONDecoder().decode([GameProfile].self, from: data) {
+            // Remove legacy codbo/codbo2 profiles from disk if present
+            self.profiles = saved.filter { $0.id != "codbo" && $0.id != "codbo2" }
         } else {
             self.profiles = []
         }
@@ -200,14 +184,14 @@ final class BTPViewModel: ObservableObject {
                 "Library/Application Support/Need for Speed Underground 2/Game"
             ),
             (
-                "codbo2",
-                "🎖️",
-                "Call of Duty: Black Ops II",
-                "t6sp.exe",
-                ["zone"],
-                nil,
-                "Applications/Call of Duty Black Ops II.app",
-                "Downloads/Call_of_Duty_Black_Ops_II/Call of Duty Black Ops II"
+                "splintercell",
+                "🕶️",
+                "Splinter Cell Conviction Complete",
+                "src/system/Conviction_game.exe",
+                ["src"],
+                60,
+                "Applications/Splinter Cell Conviction Complete.app",
+                "Downloads/Splinter_Cell_Conviction_Complete/Splinter Cell Conviction Complete"
             )
         ]
 
@@ -267,8 +251,7 @@ final class BTPViewModel: ObservableObject {
             switch profile.id {
             case "gtasa": return ["Grand Theft Auto San Andreas.app"]
             case "nfsu2": return ["Need for Speed Underground 2.app"]
-            case "codbo2": return ["Call of Duty Black Ops II.app", "Call of Duty Black Ops.app"]
-            case "codbo": return ["Call of Duty Black Ops.app"]
+            case "splintercell": return ["Splinter Cell Conviction Complete.app", "Tom Clancy's Splinter Cell Conviction.app"]
             case "nfsmw": return ["Need for Speed Most Wanted.app"]
             default: return ["\(profile.title).app"]
             }
@@ -296,8 +279,7 @@ final class BTPViewModel: ObservableObject {
             switch profile.id {
             case "gtasa": return "GTASAGameIcon"
             case "nfsu2": return "NFSU2GameIcon"
-            case "codbo2": return "CODBO2GameIcon"
-            case "codbo": return "CODBO2GameIcon"
+            case "splintercell": return "SplinterCellGameIcon"
             default: return nil
             }
         }()
@@ -468,17 +450,11 @@ final class BTPViewModel: ObservableObject {
             let contents = (try? fm.contentsOfDirectory(atPath: dir.path)) ?? []
             let lowerMap = Dictionary(uniqueKeysWithValues: contents.map { ($0.lowercased(), $0) })
 
-            // Check for Call of Duty: Black Ops II (t6sp.exe, t6mp.exe, t6zm.exe)
-            if lowerMap["t6sp.exe"] != nil || lowerMap["t6mp.exe"] != nil {
-                let exe = lowerMap["t6sp.exe"] ?? lowerMap["t6mp.exe"] ?? "t6sp.exe"
-                let preset = knownPresets.first(where: { $0.id == "codbo2" })!
-                return DiscoveredGame(rootURL: dir, matchedPreset: preset, executable: exe, isInstaller: false, installerURL: nil)
-            }
 
-            // Check for Call of Duty: Black Ops 1 (BlackOps.exe)
-            if lowerMap["blackops.exe"] != nil || lowerMap["blackopsmp.exe"] != nil {
-                let exe = lowerMap["blackops.exe"] ?? lowerMap["blackopsmp.exe"] ?? "BlackOps.exe"
-                let preset = knownPresets.first(where: { $0.id == "codbo" })!
+            // Check for Splinter Cell: Conviction (Conviction_game.exe)
+            if lowerMap["conviction_game.exe"] != nil || fm.fileExists(atPath: dir.appendingPathComponent("src/system/Conviction_game.exe").path) {
+                let exe = lowerMap["conviction_game.exe"] != nil ? (lowerMap["conviction_game.exe"]!) : "src/system/Conviction_game.exe"
+                let preset = knownPresets.first(where: { $0.id == "splintercell" })!
                 return DiscoveredGame(rootURL: dir, matchedPreset: preset, executable: exe, isInstaller: false, installerURL: nil)
             }
 
@@ -592,7 +568,7 @@ final class BTPViewModel: ObservableObject {
         guard let preset = discovered.matchedPreset else { return }
 
         let targetIndex: Int
-        if let existingIdx = profiles.firstIndex(where: { $0.id == preset.id || ($0.id == "codbo" && preset.id == "codbo2") }) {
+        if let existingIdx = profiles.firstIndex(where: { $0.id == preset.id }) {
             profiles[existingIdx].id = preset.id
             profiles[existingIdx].title = preset.title
             profiles[existingIdx].icon = preset.icon
@@ -662,12 +638,14 @@ final class BTPViewModel: ObservableObject {
         var executablePresent = false
         if lowerMap[p.executable.lowercased()] != nil || fm.fileExists(atPath: url.appendingPathComponent(p.executable).path) {
             executablePresent = true
-        } else if p.id == "codbo2" && (lowerMap["t6sp.exe"] != nil || lowerMap["t6mp.exe"] != nil) {
+        } else if p.id == "splintercell" && (lowerMap["conviction_game.exe"] != nil || fm.fileExists(atPath: url.appendingPathComponent("src/system/Conviction_game.exe").path)) {
             executablePresent = true
-            profiles[idx].executable = lowerMap["t6sp.exe"] ?? lowerMap["t6mp.exe"]!
+            if fm.fileExists(atPath: url.appendingPathComponent("src/system/Conviction_game.exe").path) {
+                profiles[idx].executable = "src/system/Conviction_game.exe"
+            } else {
+                profiles[idx].executable = lowerMap["conviction_game.exe"] ?? "Conviction_game.exe"
+            }
             saveProfilesToDisk()
-        } else if p.id == "codbo" && (lowerMap["blackops.exe"] != nil || lowerMap["blackopsmp.exe"] != nil) {
-            executablePresent = true
         }
 
         var missing: [String] = []
@@ -862,104 +840,7 @@ final class BTPViewModel: ObservableObject {
             return
         }
 
-        if selectedProfileID == "codbo2" {
-            let scriptPath = Bundle.main.path(forResource: "break-codbo2", ofType: "sh")
-                ?? "/Users/lendaii/Movies/antigravity/breaking-the-pattern/scripts/break-codbo2.sh"
-            Task.detached(priority: .userInitiated) {
-                await MainActor.run {
-                    self.progress = 30
-                    self.progressText = "Configurando o perfil BTP HyperMetal para teste..."
-                }
-                try? await Task.sleep(nanoseconds: 350_000_000)
-                await MainActor.run {
-                    self.progress = 65
-                    self.progressText = "Preparando Call of Duty Black Ops II.app..."
-                }
-                let proc = Process()
-                proc.executableURL = URL(fileURLWithPath: "/bin/bash")
-                proc.arguments = [scriptPath, path]
-                let logURL = URL(fileURLWithPath: "/tmp/btp_break_codbo2.log")
-                FileManager.default.createFile(atPath: logURL.path, contents: nil)
-                if let handle = try? FileHandle(forWritingTo: logURL) {
-                    proc.standardOutput = handle
-                    proc.standardError = handle
-                }
-                do {
-                    try proc.run()
-                    proc.waitUntilExit()
-                    if proc.terminationStatus == 0 {
-                        await MainActor.run {
-                            self.progress = 100
-                            self.progressText = "✅ Black Ops II.app preparado. Jogabilidade ainda precisa de teste."
-                            self.profiles[idx].isBrokenAndReady = true
-                            self.saveProfilesToDisk()
-                            self.state = .readyToPlay
-                        }
-                    } else {
-                        let errLog = (try? String(contentsOf: logURL, encoding: .utf8)) ?? ""
-                        await MainActor.run {
-                            self.state = .errorRuntime("Erro ao preparar Call of Duty: Black Ops II: \(errLog.suffix(200))")
-                        }
-                    }
-                } catch {
-                    await MainActor.run {
-                        self.state = .errorRuntime("Falha ao executar preparação: \(error.localizedDescription)")
-                    }
-                }
-            }
-            return
-        }
-
-        if selectedProfileID == "codbo" {
-            let scriptPath = Bundle.main.path(forResource: "break-codbo", ofType: "sh")
-                ?? "/Users/lendaii/Movies/antigravity/breaking-the-pattern/scripts/break-codbo.sh"
-            Task.detached(priority: .userInitiated) {
-                await MainActor.run {
-                    self.progress = 30
-                    self.progressText = "Configurando o perfil BTP HyperMetal para teste..."
-                }
-                try? await Task.sleep(nanoseconds: 350_000_000)
-                await MainActor.run {
-                    self.progress = 65
-                    self.progressText = "Preparando Call of Duty Black Ops.app..."
-                }
-                let proc = Process()
-                proc.executableURL = URL(fileURLWithPath: "/bin/bash")
-                proc.arguments = [scriptPath, path]
-                let logURL = URL(fileURLWithPath: "/tmp/btp_break_codbo.log")
-                FileManager.default.createFile(atPath: logURL.path, contents: nil)
-                if let handle = try? FileHandle(forWritingTo: logURL) {
-                    proc.standardOutput = handle
-                    proc.standardError = handle
-                }
-                do {
-                    try proc.run()
-                    proc.waitUntilExit()
-                    if proc.terminationStatus == 0 {
-                        await MainActor.run {
-                            self.progress = 100
-                            self.progressText = "✅ Black Ops.app preparado. Jogabilidade ainda precisa de teste."
-                            self.profiles[idx].isBrokenAndReady = true
-                            self.saveProfilesToDisk()
-                            self.state = .readyToPlay
-                        }
-                    } else {
-                        let errLog = (try? String(contentsOf: logURL, encoding: .utf8)) ?? ""
-                        await MainActor.run {
-                            self.state = .errorRuntime("Erro ao preparar Call of Duty: Black Ops: \(errLog.suffix(200))")
-                        }
-                    }
-                } catch {
-                    await MainActor.run {
-                        self.state = .errorRuntime("Falha ao executar preparação: \(error.localizedDescription)")
-                    }
-                }
-            }
-            return
-        }
-
-
-        // Qualquer outro jogo: BREAK genérico (analisa o .exe, escolhe o motor gráfico e gera o .app).
+        // Qualquer outro jogo (incluindo Splinter Cell Conviction): BREAK genérico / perfil adaptativo.
         let scriptPath = Bundle.main.path(forResource: "break-game", ofType: "sh")
             ?? "/Users/lendaii/Movies/antigravity/breaking-the-pattern/scripts/break-game.sh"
         let title = profiles[idx].title
@@ -1024,10 +905,8 @@ final class BTPViewModel: ObservableObject {
             appName = "Need for Speed Underground 2.app"
         case "gtasa":
             appName = "Grand Theft Auto San Andreas.app"
-        case "codbo2":
-            appName = "Call of Duty Black Ops II.app"
-        case "codbo":
-            appName = "Call of Duty Black Ops.app"
+        case "splintercell":
+            appName = "Splinter Cell Conviction Complete.app"
         case "nfsmw":
             appName = "Need for Speed Most Wanted.app"
         default:
