@@ -130,7 +130,9 @@ final class BTPViewModel: ObservableObject {
     @Published var selectedChipOverride: String = "auto"
     @Published var profiles: [GameProfile] = []
     @Published var selectedProfileID: String = ""
-    @Published var state: BreakState = .empty
+    @Published var state: BreakState = .empty {
+        didSet { BTPUpdates.shared.isPreparingGame = (state == .breaking) }
+    }
     @Published var progress: Double = 0.0
     @Published var progressText: String = "Nenhum jogo instalado ainda. Arraste uma pasta ou clique abaixo."
     @Published var isGameRunning: Bool = false
@@ -288,7 +290,7 @@ final class BTPViewModel: ObservableObject {
                let img = NSImage(contentsOfFile: path) {
                 return img
             }
-            let devPath = "/Users/lendaii/Movies/antigravity/breaking-the-pattern/src/\(bName).icns"
+            let devPath = Bundle.main.bundleURL.appendingPathComponent("Contents/Resources/\(bName).icns").path
             if let img = NSImage(contentsOfFile: devPath) {
                 return img
             }
@@ -414,7 +416,7 @@ final class BTPViewModel: ObservableObject {
 
     func chooseFolderWithPanel() {
         let panel = NSOpenPanel()
-        panel.title = "Selecione a pasta do jogo Windows"
+        panel.title = L("Selecione a pasta do jogo Windows")
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
@@ -682,10 +684,10 @@ final class BTPViewModel: ObservableObject {
         let installerDir = cabURL.deletingLastPathComponent()
         let fm = FileManager.default
         let targetDir = fm.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/Breaking the Pattern/Games/GTA San Andreas")
+            .appendingPathComponent("Library/Application Support/Breaking the Pattern/Extractions/\(UUID().uuidString)/GTA San Andreas")
 
         let bundledUnshield = Bundle.main.path(forResource: "unshield", ofType: nil)
-            ?? "/Users/lendaii/Movies/antigravity/breaking-the-pattern/bin/unshield"
+            ?? Bundle.main.bundleURL.appendingPathComponent("Contents/Resources/unshield").path
 
         guard fm.isExecutableFile(atPath: bundledUnshield) else {
             state = .errorRuntime("Motor extrator 'unshield' não encontrado no pacote do app.")
@@ -719,10 +721,14 @@ final class BTPViewModel: ObservableObject {
                     let proc = Process()
                     proc.executableURL = URL(fileURLWithPath: bundledUnshield)
                     proc.arguments = ["-g", group, "-d", targetDir.path, "x", cabURL.path]
-                    proc.standardOutput = Pipe()
-                    proc.standardError = Pipe()
+                    proc.standardOutput = FileHandle.nullDevice
+                    proc.standardError = FileHandle.nullDevice
                     try proc.run()
                     proc.waitUntilExit()
+                    guard proc.terminationStatus == 0 else {
+                        throw NSError(domain: "BTP", code: Int(proc.terminationStatus), userInfo:
+                            [NSLocalizedDescriptionKey: "Falha ao extrair o grupo \(group). A pasta original foi preservada."])
+                    }
                 }
 
                 await MainActor.run {
@@ -792,58 +798,14 @@ final class BTPViewModel: ObservableObject {
         progress = 15
         progressText = "Preparando BTP HyperMetal + Neural (Metal e x87)..."
 
-        if selectedProfileID == "gtasa" {
-            let scriptPath = Bundle.main.path(forResource: "break-gtasa", ofType: "sh")
-                ?? "/Users/lendaii/Movies/antigravity/breaking-the-pattern/scripts/break-gtasa.sh"
-            Task.detached(priority: .userInitiated) {
-                await MainActor.run {
-                    self.progress = 30
-                    self.progressText = "Preparando o perfil GTA SA e os componentes de compatibilidade..."
-                }
-                try? await Task.sleep(nanoseconds: 350_000_000)
-                await MainActor.run {
-                    self.progress = 60
-                    self.progressText = "Preparando ícone e cópias APFS, quando disponíveis..."
-                }
-                let proc = Process()
-                proc.executableURL = URL(fileURLWithPath: "/bin/bash")
-                proc.arguments = [scriptPath, path]
-                let logURL = URL(fileURLWithPath: "/tmp/btp_break_gtasa.log")
-                FileManager.default.createFile(atPath: logURL.path, contents: nil)
-                if let handle = try? FileHandle(forWritingTo: logURL) {
-                    proc.standardOutput = handle
-                    proc.standardError = handle
-                }
-                do {
-                    try proc.run()
-                    proc.waitUntilExit()
-                    if proc.terminationStatus == 0 {
-                        await MainActor.run {
-                            self.progress = 100
-                            self.progressText = "✅ GTA San Andreas.app preparado. Teste o jogo com limite de 60 FPS."
-                            self.profiles[idx].isBrokenAndReady = true
-                            self.saveProfilesToDisk()
-                            self.state = .readyToPlay
-                        }
-                    } else {
-                        let errLog = (try? String(contentsOf: logURL, encoding: .utf8)) ?? ""
-                        await MainActor.run {
-                            self.state = .errorRuntime("Erro ao preparar o pacote GTA San Andreas: \(errLog.suffix(200))")
-                        }
-                    }
-                } catch {
-                    await MainActor.run {
-                        self.state = .errorRuntime("Falha ao executar preparação: \(error.localizedDescription)")
-                    }
-                }
-            }
+        guard ["gtasa", "nfsu2"].contains(selectedProfileID) else {
+            state = .errorRuntime("Este jogo está em testes. O suporte será incluído numa atualização futura. Seus apps já preparados continuam disponíveis.")
             return
         }
 
-        // Qualquer outro jogo (incluindo Splinter Cell Conviction): BREAK genérico / perfil adaptativo.
         let scriptPath = Bundle.main.path(forResource: "break-game", ofType: "sh")
-            ?? "/Users/lendaii/Movies/antigravity/breaking-the-pattern/scripts/break-game.sh"
-        let title = profiles[idx].title
+            ?? Bundle.main.bundleURL.appendingPathComponent("Contents/Resources/break-game.sh").path
+        let title = selectedProfileID == "gtasa" ? "Grand Theft Auto San Andreas" : profiles[idx].title
         let executable = profiles[idx].executable
         Task.detached(priority: .userInitiated) {
             let proc = Process()
@@ -934,13 +896,15 @@ final class BTPViewModel: ObservableObject {
 // MARK: - SwiftUI Interface (Original Sleek Dark Layout with Real Game Icons)
 struct ContentView: View {
     @StateObject private var vm = BTPViewModel()
+    @ObservedObject private var updates = BTPUpdates.shared
+    @ObservedObject private var language = BTPLanguage.shared
 
     private var headerIconImage: NSImage? {
         if let p = Bundle.main.path(forResource: "AppIcon", ofType: "png"),
            let img = NSImage(contentsOfFile: p) {
             return img
         }
-        return NSImage(contentsOfFile: "/Users/lendaii/Movies/antigravity/breaking-the-pattern/src/AppIcon.png")
+        return nil
     }
 
     var body: some View {
@@ -955,27 +919,29 @@ struct ContentView: View {
                             .frame(width: 26, height: 26)
                             .clipShape(RoundedRectangle(cornerRadius: 6))
                     } else {
-                        Text("⚡")
+                        BTPText("⚡")
                             .font(.system(size: 16))
                     }
-                    Text("BREAKING THE PATTERN")
+                    BTPText("BREAKING THE PATTERN")
                         .font(.system(size: 14, weight: .bold))
-                    Text("v0.1.2")
+                    BTPText("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                 }
 
                 Spacer()
+                Button { updates.showSettings = true } label: { Image(systemName: "arrow.triangle.2.circlepath") }
+                    .help(L("Atualizações do BTP"))
 
                 HStack(spacing: 8) {
-                    Text("Chip detectado:")
+                    BTPText("Chip detectado:")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                     Picker("", selection: $vm.selectedChipOverride) {
-                        Text("\(vm.hardware.chipName) • \(vm.hardware.screenWidth)×\(vm.hardware.screenHeight) @ \(vm.hardware.refreshRate)Hz").tag("auto")
-                        Text("Simular: Apple M5 Pro (155Hz)").tag("m5pro")
-                        Text("Simular: Apple M3 Pro (120Hz)").tag("m3pro")
-                        Text("Simular: MacBook Air M1 (60Hz)").tag("m1air")
+                        BTPText("\(vm.hardware.chipName) • \(vm.hardware.screenWidth)×\(vm.hardware.screenHeight) @ \(vm.hardware.refreshRate)Hz").tag("auto")
+                        BTPText("Simular: Apple M5 Pro (155Hz)").tag("m5pro")
+                        BTPText("Simular: Apple M3 Pro (120Hz)").tag("m3pro")
+                        BTPText("Simular: MacBook Air M1 (60Hz)").tag("m1air")
                     }
                     .labelsHidden()
                     .frame(width: 280)
@@ -993,12 +959,12 @@ struct ContentView: View {
                 // Left Sidebar
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
-                        Text("BIBLIOTECA DE JOGOS")
+                        BTPText("BIBLIOTECA DE JOGOS")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(.secondary)
                         Spacer()
                         if !vm.profiles.isEmpty {
-                            Text("\(vm.profiles.count)")
+                            BTPText("\(vm.profiles.count)")
                                 .font(.system(size: 10, weight: .bold))
                                 .foregroundStyle(.secondary)
                                 .padding(.horizontal, 6)
@@ -1015,10 +981,10 @@ struct ContentView: View {
                             Image(systemName: "gamecontroller")
                                 .font(.system(size: 28))
                                 .foregroundStyle(.secondary.opacity(0.4))
-                            Text("Nenhum jogo instalado")
+                            BTPText("Nenhum jogo instalado")
                                 .font(.system(size: 11, weight: .semibold))
                                 .foregroundStyle(.secondary)
-                            Text("Arraste uma pasta aqui ou clique abaixo para instalar.")
+                            BTPText("Arraste uma pasta aqui ou clique abaixo para instalar.")
                                 .font(.system(size: 10))
                                 .foregroundStyle(.secondary.opacity(0.7))
                                 .multilineTextAlignment(.center)
@@ -1050,21 +1016,21 @@ struct ContentView: View {
                                                         .clipShape(RoundedRectangle(cornerRadius: 6))
                                                         .shadow(color: .black.opacity(0.4), radius: 2, x: 0, y: 1)
                                                 } else {
-                                                    Text(profile.icon)
+                                                    BTPText(profile.icon)
                                                         .font(.system(size: 18))
                                                 }
 
                                                 VStack(alignment: .leading, spacing: 2) {
-                                                    Text(profile.title)
+                                                    BTPText(profile.title)
                                                         .font(.system(size: 12, weight: .semibold))
                                                         .foregroundStyle(.primary)
                                                         .lineLimit(1)
-                                                    Text("Executável (\(profile.executable))")
+                                                    BTPText("Executável (\(profile.executable))")
                                                         .font(.system(size: 10))
                                                         .foregroundStyle(.secondary)
                                                 }
                                                 Spacer()
-                                                Text(profile.isBrokenAndReady ? "Preparado" : "Configurar")
+                                                BTPText(profile.isBrokenAndReady ? "Preparado" : "Configurar")
                                                     .font(.system(size: 10, weight: .medium))
                                                     .padding(.horizontal, 6)
                                                     .padding(.vertical, 3)
@@ -1082,7 +1048,7 @@ struct ContentView: View {
                                                 .foregroundStyle(.secondary.opacity(0.6))
                                         }
                                         .buttonStyle(.plain)
-                                        .help("Remover da lista")
+                                        .help(L("Remover da lista"))
                                     }
                                     .padding(8)
                                     .background(
@@ -1107,7 +1073,7 @@ struct ContentView: View {
                     } label: {
                         HStack {
                             Image(systemName: "folder.badge.plus")
-                            Text("Adicionar Jogo...")
+                            BTPText("Adicionar Jogo...")
                                 .font(.system(size: 12, weight: .medium))
                             Spacer()
                         }
@@ -1122,11 +1088,11 @@ struct ContentView: View {
                     Divider()
 
                     HStack {
-                        Text("HUD de FPS no jogo:")
+                        BTPText("HUD de FPS no jogo:")
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
                         Spacer()
-                        Text("⌘ ⌥ 9")
+                        BTPText("⌘ ⌥ 9")
                             .font(.system(size: 11, weight: .semibold, design: .monospaced))
                             .padding(.horizontal, 8)
                             .padding(.vertical, 3)
@@ -1143,8 +1109,8 @@ struct ContentView: View {
                             }
                         } label: {
                             HStack(spacing: 4) {
-                                Text("☕")
-                                Text("Doar PayPal")
+                                BTPText("☕")
+                                BTPText("Doar PayPal")
                                     .font(.system(size: 11, weight: .medium))
                             }
                             .frame(maxWidth: .infinity)
@@ -1161,8 +1127,8 @@ struct ContentView: View {
                             }
                         } label: {
                             HStack(spacing: 4) {
-                                Text("⭐")
-                                Text("GitHub")
+                                BTPText("⭐")
+                                BTPText("GitHub")
                                     .font(.system(size: 11, weight: .medium))
                             }
                             .padding(.horizontal, 8)
@@ -1205,7 +1171,7 @@ struct ContentView: View {
                                         .clipShape(RoundedRectangle(cornerRadius: 10))
                                         .shadow(color: .black.opacity(0.4), radius: 3, x: 0, y: 1)
                                 } else {
-                                    Text(profile.icon)
+                                    BTPText(profile.icon)
                                         .font(.system(size: 26))
                                         .frame(width: 44, height: 44)
                                         .background(Color(nsColor: .windowBackgroundColor))
@@ -1214,9 +1180,9 @@ struct ContentView: View {
 
                                 VStack(alignment: .leading, spacing: 3) {
                                     HStack(spacing: 8) {
-                                        Text(profile.title)
+                                        BTPText(profile.title)
                                             .font(.system(size: 14, weight: .bold))
-                                        Text(profile.executable)
+                                        BTPText(profile.executable)
                                             .font(.system(size: 11, design: .monospaced))
                                             .padding(.horizontal, 6)
                                             .padding(.vertical, 2)
@@ -1224,7 +1190,7 @@ struct ContentView: View {
                                             .clipShape(RoundedRectangle(cornerRadius: 4))
                                             .foregroundStyle(.secondary)
                                     }
-                                    Text(path)
+                                    BTPText(path)
                                         .font(.system(size: 11, design: .monospaced))
                                         .foregroundStyle(.secondary)
                                         .lineLimit(1)
@@ -1233,7 +1199,7 @@ struct ContentView: View {
 
                                 Spacer()
 
-                                Button("Trocar Pasta") {
+                                Button(L("Trocar Pasta")) {
                                     vm.chooseFolderWithPanel()
                                 }
                                 .controlSize(.small)
@@ -1249,23 +1215,23 @@ struct ContentView: View {
                                         .frame(width: 36, height: 36)
                                         .clipShape(RoundedRectangle(cornerRadius: 8))
                                 } else {
-                                    Text(profile.icon)
+                                    BTPText(profile.icon)
                                         .font(.system(size: 26))
                                 }
-                                Text("Arraste a pasta de \(profile.title) aqui")
+                                BTPText("Arraste a pasta de \(profile.title) aqui")
                                     .font(.system(size: 13, weight: .semibold))
-                                Text("Ou clique aqui para selecionar a pasta no Finder (\(profile.executable))")
+                                BTPText("Ou clique aqui para selecionar a pasta no Finder (\(profile.executable))")
                                     .font(.system(size: 11))
                                     .foregroundStyle(.secondary)
                             }
                             .padding(14)
                         } else {
                             VStack(spacing: 6) {
-                                Text("📂")
+                                BTPText("📂")
                                     .font(.system(size: 26))
-                                Text("Arraste a pasta do jogo ou do instalador aqui")
+                                BTPText("Arraste a pasta do jogo ou do instalador aqui")
                                     .font(.system(size: 13, weight: .semibold))
-                                Text("Ou clique aqui para selecionar a pasta no Finder")
+                                BTPText("Ou clique aqui para selecionar a pasta no Finder")
                                     .font(.system(size: 11))
                                     .foregroundStyle(.secondary)
                             }
@@ -1292,12 +1258,12 @@ struct ContentView: View {
                     // Diagnostic Banner
                     if case .readyToInstallAndBreak = vm.state {
                         HStack(alignment: .top, spacing: 10) {
-                            Text("📦")
+                            BTPText("📦")
                             VStack(alignment: .leading, spacing: 3) {
-                                Text("Instalador de Windows Detectado (setup.exe + data1.cab)")
+                                BTPText("Instalador de Windows Detectado (setup.exe + data1.cab)")
                                     .font(.system(size: 12, weight: .bold))
                                     .foregroundStyle(.cyan)
-                                Text("O BTP tentará extrair os arquivos desta mídia no Mac. O suporte depende do instalador; depois, prepare o app e teste a jogabilidade.")
+                                BTPText("O BTP tentará extrair os arquivos desta mídia no Mac. O suporte depende do instalador; depois, prepare o app e teste a jogabilidade.")
                                     .font(.system(size: 11))
                             }
                             Spacer()
@@ -1307,12 +1273,12 @@ struct ContentView: View {
                         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.cyan.opacity(0.45), lineWidth: 1))
                     } else if case .errorSecurityMalware(let msg) = vm.state {
                         HStack(alignment: .top, spacing: 10) {
-                            Text("🚨")
+                            BTPText("🚨")
                             VStack(alignment: .leading, spacing: 3) {
-                                Text("Arquivo requer revisão")
+                                BTPText("Arquivo requer revisão")
                                     .font(.system(size: 12, weight: .bold))
                                     .foregroundStyle(.red)
-                                Text(msg)
+                                BTPText(msg)
                                     .font(.system(size: 11))
                             }
                             Spacer()
@@ -1322,12 +1288,12 @@ struct ContentView: View {
                         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.red.opacity(0.55), lineWidth: 1.5))
                     } else if case .errorMissingFiles(let missing) = vm.state {
                         HStack(alignment: .top, spacing: 10) {
-                            Text("⚠️")
+                            BTPText("⚠️")
                             VStack(alignment: .leading, spacing: 3) {
-                                Text("Pasta Incompleta Detectada Antes do Break")
+                                BTPText("Pasta Incompleta Detectada Antes do Break")
                                     .font(.system(size: 12, weight: .bold))
                                     .foregroundStyle(.red)
-                                Text("Faltam os seguintes itens obrigatórios na pasta: \(missing.joined(separator: ", ")). Selecione a pasta completa do jogo para continuar.")
+                                BTPText("Faltam os seguintes itens obrigatórios na pasta: \(missing.joined(separator: ", ")). Selecione a pasta completa do jogo para continuar.")
                                     .font(.system(size: 11))
                             }
                             Spacer()
@@ -1337,12 +1303,12 @@ struct ContentView: View {
                         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.red.opacity(0.35), lineWidth: 1))
                     } else if case .errorRuntime(let msg) = vm.state {
                         HStack(alignment: .top, spacing: 10) {
-                            Text("🛡️")
+                            BTPText("🛡️")
                             VStack(alignment: .leading, spacing: 3) {
-                                Text("Aviso do Vigia de Execução")
+                                BTPText("Aviso do Vigia de Execução")
                                     .font(.system(size: 12, weight: .bold))
                                     .foregroundStyle(.orange)
-                                Text(msg)
+                                BTPText(msg)
                                     .font(.system(size: 11))
                             }
                             Spacer()
@@ -1355,13 +1321,13 @@ struct ContentView: View {
                     // 2x2 Diagnostic Grid
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
                         DiagnosticCard(title: "Motor Gráfico & CPU", value: "BTP HyperMetal + Neural", valueColor: .primary)
-                            .help("Rótulos BTP para componentes de compatibilidade: Wine, Rosetta, tradução gráfica para Metal e x87sidecar. Não indicam uso do Neural Engine da Apple.")
+                            .help(L("Rótulos BTP para componentes de compatibilidade: Wine, Rosetta, tradução gráfica para Metal e x87sidecar. Não indicam uso do Neural Engine da Apple."))
                         DiagnosticCard(title: "Limite sugerido · FPS não medido", value: vm.autoScaleDescription, valueColor: .green)
-                            .help("Sugestão do perfil, sem garantia de desempenho ou de aplicação automática. Confirme a configuração e meça o FPS durante a partida.")
+                            .help(L("Sugestão do perfil, sem garantia de desempenho ou de aplicação automática. Confirme a configuração e meça o FPS durante a partida."))
                         DiagnosticCard(title: "Tela detectada / Referência", value: vm.resolutionDescription, valueColor: .primary)
-                            .help("A tela detectada é expressa em pontos lógicos do macOS. A resolução de renderização e a tela cheia são configuradas e verificadas no jogo.")
+                            .help(L("A tela detectada é expressa em pontos lógicos do macOS. A resolução de renderização e a tela cheia são configuradas e verificadas no jogo."))
                         DiagnosticCard(title: "Presença dos arquivos", value: vm.integrityDescription, valueColor: .primary)
-                            .help("Verifica a presença dos caminhos exigidos pelo perfil. Não autentica os arquivos nem realiza uma análise de malware.")
+                            .help(L("Verifica a presença dos caminhos exigidos pelo perfil. Não autentica os arquivos nem realiza uma análise de malware."))
                     }
 
                     Spacer()
@@ -1369,11 +1335,11 @@ struct ContentView: View {
                     // Progress Bar & Main CTA Button
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text(vm.progressText)
+                            BTPText(vm.progressText)
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundStyle(.secondary)
                             Spacer()
-                            Text("\(Int(vm.progress))%")
+                            BTPText("\(Int(vm.progress))%")
                                 .font(.system(size: 12, weight: .bold, design: .monospaced))
                         }
 
@@ -1396,7 +1362,7 @@ struct ContentView: View {
                         } label: {
                             HStack {
                                 Spacer()
-                                Text(buttonLabel)
+                                BTPText(buttonLabel)
                                     .font(.system(size: 14, weight: .bold))
                                 Spacer()
                             }
@@ -1415,8 +1381,8 @@ struct ContentView: View {
                                     vm.performBreak()
                                 } label: {
                                     HStack(spacing: 4) {
-                                        Text("⚡")
-                                        Text("Preparar novamente com BTP HyperMetal")
+                                        BTPText("⚡")
+                                        BTPText("Preparar novamente com BTP HyperMetal")
                                             .font(.system(size: 11, weight: .medium))
                                     }
                                     .foregroundStyle(.secondary)
@@ -1432,6 +1398,8 @@ struct ContentView: View {
             }
         }
         .frame(width: 780, height: 470)
+        .environment(\.locale, Locale(identifier: language.code))
+        .sheet(isPresented: $updates.showSettings) { BTPUpdatesView(updates: updates) }
     }
 
     private var buttonLabel: String {
@@ -1471,10 +1439,10 @@ struct DiagnosticCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title)
+            BTPText(title)
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
-            Text(value)
+            BTPText(value)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(valueColor)
                 .lineLimit(1)
@@ -1488,6 +1456,7 @@ struct DiagnosticCard: View {
 }
 
 // MARK: - App Entry Point
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow!
 
@@ -1496,6 +1465,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
            let iconImage = NSImage(contentsOfFile: iconPath) {
             NSApp.applicationIconImage = iconImage
         }
+        let updates = BTPUpdates.shared
+        rebuildMenu()
+        NotificationCenter.default.addObserver(self, selector: #selector(rebuildMenu), name: .btpLanguageChanged, object: nil)
         let contentView = ContentView()
             .preferredColorScheme(.dark)
         window = NSWindow(
@@ -1512,13 +1484,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    @objc func rebuildMenu() {
+        let menu = NSMenu(), appMenu = NSMenu(), appItem = NSMenuItem()
+        appItem.submenu = appMenu; menu.addItem(appItem)
+        let update = NSMenuItem(title: L("Atualizações…"), action: #selector(BTPUpdates.showUpdates), keyEquivalent: "")
+        update.target = BTPUpdates.shared; appMenu.addItem(update)
+        let languageItem = NSMenuItem(title: "Language / Idioma", action: nil, keyEquivalent: "")
+        let languageMenu = NSMenu()
+        for (key, title) in [("auto", L("Idioma do Mac")), ("pt-BR", "Português (Brasil)"), ("en", "English")] {
+            let item = NSMenuItem(title: title, action: #selector(selectLanguage(_:)), keyEquivalent: "")
+            item.target = self; item.representedObject = key
+            item.state = BTPLanguage.shared.selection == key ? .on : .off
+            languageMenu.addItem(item)
+        }
+        languageItem.submenu = languageMenu; appMenu.addItem(languageItem)
+        appMenu.addItem(.separator())
+        appMenu.addItem(NSMenuItem(title: L("Sair do BTP"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        NSApp.mainMenu = menu
+    }
+    @objc func selectLanguage(_ sender: NSMenuItem) {
+        if let code = sender.representedObject as? String { BTPLanguage.shared.selection = code }
+    }
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
     }
 }
 
-let app = NSApplication.shared
-app.setActivationPolicy(.regular)
-let delegate = AppDelegate()
-app.delegate = delegate
-app.run()
+@main
+@MainActor
+struct BTPMain {
+    static func main() {
+        let app = NSApplication.shared
+        app.setActivationPolicy(.regular)
+        let delegate = AppDelegate()
+        app.delegate = delegate
+        withExtendedLifetime(delegate) { app.run() }
+    }
+}

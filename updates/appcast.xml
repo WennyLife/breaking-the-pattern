@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>Breaking the Pattern Updates</title>
+    <link>https://github.com/WennyLife/breaking-the-pattern</link>
+    <description>The first binary preview is prepared locally. Signed update items will be added after their release assets are published.</description>
+  </channel>
+</rss>

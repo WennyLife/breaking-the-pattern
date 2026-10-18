@@ -85,6 +85,9 @@ def main():
         unpacked = stage / 'ZipValidation'
         run('/usr/bin/ditto', '-x', '-k', package, unpacked)
         verify(unpacked / app.name)
+        dmg = stage / 'Instaladores' / f'{name}-{version}.dmg'
+        run('/usr/bin/hdiutil', 'create', '-volname', name, '-srcfolder', stage / 'App', '-format', 'UDZO', dmg)
+        run('/usr/bin/hdiutil', 'verify', dmg)
         (stage / 'Codigo' / 'Projeto original').symlink_to(project, target_is_directory=True)
         shutil.copy2(app / 'Contents/Resources/Build.json', stage / 'Codigo' / 'Build.json')
         record = {
@@ -95,15 +98,18 @@ def main():
             'projeto': str(project),
             'pasta': str(archive),
             'instaladores': [{'arquivo': str(archive / 'Instaladores' / package_name),
-                             'sha256': digest(package), 'origem': str(app)}],
+                             'sha256': digest(package), 'origem': str(app)},
+                            {'arquivo': str(archive / 'Instaladores' / dmg.name),
+                             'sha256': digest(dmg), 'origem': str(app)}],
             'executavel_sha256': digest(app / 'Contents/MacOS' / info['CFBundleExecutable']),
             'validacao': ['Build Swift arm64', 'Assinatura ad hoc verificada',
                           'ZIP íntegro e app extraído com assinatura verificada',
+                          'DMG atual gerado e verificado pelo macOS',
                           'Pacote BTP sem executáveis, dados ou saves dos jogos'],
-            'limitacoes': ['DMG desta versão não gerado; pacote ZIP disponível.',
-                          'Assinatura ad hoc local, sem notarização.',
+            'limitacoes': ['Assinatura ad hoc local, sem notarização.',
                           'Validação deste pacote não comprova compatibilidade ou FPS dos jogos.',
-                          'Preparação de jogos ainda depende do runtime doador instalado separadamente.'],
+                          'Motor independente obtido de fontes fixadas; Rosetta e internet necessárias na primeira preparação.',
+                          'Edições específicas de NFSU2/GTA SA; instalação em outro Mac e gameplay prolongado da nova receita ainda requerem validação.'],
             'atualizado_em': datetime.now(timezone.utc).isoformat(),
         }
         (stage / 'Registros' / 'inventario.json').write_text(json.dumps(record, ensure_ascii=False, indent=2) + '\n')

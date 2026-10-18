@@ -1,96 +1,77 @@
 <div align="center">
 
-# ⚡ Breaking the Pattern (BTP)
+# ⚡ Breaking the Pattern
 
-![Ícone do Breaking the Pattern](assets/icon.png)
+![Breaking the Pattern icon](assets/icon.png)
 
-### Prepare aplicativos de jogos Windows para testar no Mac com Apple Silicon
-*BTP HyperMetal Engine • BTP Neural Silicon Accelerator • Zero-Clutter APFS Storage Engine*
+**Prepare your own Windows games for Apple Silicon Macs.**
 
-[![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-blue?style=for-the-badge)](https://github.com/WennyLife/breaking-the-pattern)
-[![Compatibilidade](https://img.shields.io/badge/Compatibilidade-Wine%20%2B%20Metal-00b4d8?style=for-the-badge)](#como-funciona)
-[![Status](https://img.shields.io/badge/Status-Experimental-orange?style=for-the-badge)](#estado-dos-jogos)
+[Releases](https://github.com/WennyLife/breaking-the-pattern/releases) · [Português](README.pt-BR.md) · [How it works](docs/METODO-E-VALIDACAO.md)
 
-**Uma interface macOS para organizar jogos próprios, preparar seus ambientes de compatibilidade e criar atalhos `.app`. Cada jogo precisa ser testado: gerar o aplicativo não confirma que uma partida funciona.**
-
-
+**0.2.0 Preview · English / Português · macOS 15+ · Apple Silicon**
 
 </div>
 
-## Como funciona
+BTP prepares a separate Mac launcher and a Wine compatibility environment for a game folder you provide. It downloads its own pinned runtime components, verifies their SHA-256 checksums, and applies an edition-specific recipe. You do not need a previously prepared NFS app or Xcode on the destination Mac.
 
-O launcher e a interface BTP são aplicativos macOS escritos em Swift. O jogo continua sendo o executável de Windows; o BTP não recompila seu código em uma versão nativa para Apple Silicon.
+**Games, game executables, saves, cracks, and personal Wine prefixes are not included.** Supply your own game files. BTP does not download commercial games or replace their executables.
 
-- **Wine** fornece a compatibilidade com APIs de Windows. O runtime local auditado deriva do build `cx-26.3.0-9` de [athei/wine-build](https://github.com/athei/wine-build).
-- **Rosetta** executa o código Intel no Apple Silicon. O [x87sidecar](https://github.com/athei/x87sidecar) complementa esse caminho para operações x87 em perfis compatíveis.
-- **Metal** é a API gráfica do Mac. Para os perfis Direct3D 9 validados localmente, [mtld3d](https://github.com/athei/mtld3d) traduz as chamadas gráficas para Metal. Outros jogos e APIs exigem configuração e validação próprias.
-- **Correções específicas**, como Widescreen Fix e suporte a controles, dependem da versão do jogo e dos componentes presentes no ambiente local.
+## Getting started
 
-Os nomes **BTP HyperMetal Engine** e **BTP Neural Silicon Accelerator** são rótulos do projeto para integrar esses componentes de terceiros. “Neural” não indica uso do Neural Engine da Apple nem um acelerador de hardware proprietário.
+The 0.2.0 ZIP/DMG preview is built and verified locally. Its public binary upload is pending; this repository currently provides the source and build instructions. The update feed remains empty until signed assets are published.
 
-**Zero-Clutter APFS Storage Engine** identifica o uso de clonagem APFS quando disponível. Clones podem compartilhar blocos inicialmente; alterações, caches, prefixos e backups consomem espaço. Não há garantia de zero bytes adicionais.
+1. Download the current DMG or ZIP from [Releases](https://github.com/WennyLife/breaking-the-pattern/releases). Copy BTP to your Applications folder.
+2. Open BTP and select your game folder. Install Rosetta through macOS if it is missing. Internet access is needed for the first runtime download (about 235 MB; roughly 1.3 GB expanded).
+3. Click **BREAK**. The initial recipes target the tested editions of **Need for Speed Underground 2** and **GTA San Andreas**.
+4. Launch the generated game app and verify gameplay, sound, input, and saving. **Prepared** means packaging completed; it does not mean every mission was verified.
 
-## Estado dos jogos
+Use **BTP → Language / Idioma** to choose English, Português (Brasil), or the Mac language. The language setting changes BTP, not the language files of a game.
 
-Situação registrada em **17 de outubro de 2026**, no Mac de desenvolvimento com Apple M5 Pro. “Relatado jogável” representa o teste do usuário; não cobre todas as missões, versões do jogo ou outros Macs.
+This preview is locally ad hoc signed, not Apple-notarized. First launch on another Mac and a complete clean-machine game installation still need independent validation.
 
-| Jogo | Executável | Evidência atual | FPS e próximos testes |
-| :--- | :--- | :--- | :--- |
-| **Need for Speed Underground 2** | `SPEED2.EXE` | Usuário confirmou que está jogável | Há medições locais acima de 60 FPS; não estabelecem mínimo sustentado ou desempenho garantido em outros Macs. |
-| **Grand Theft Auto: San Andreas** | `gta_sa.exe` | Usuário confirmou que está jogável | Manter **limite máximo de 60 FPS**: o usuário relatou problemas acima disso. Limite de 60 confirmado no menu; botões do controle ainda precisam de teste físico numa partida. |
-| **Splinter Cell: Conviction** | `Conviction_game.exe` | Cena inicial e tutorial observados em app independente | Perfil experimental Metal em janela + FusionFix para uma edição identificada por SHA256. Amostra de diagnóstico de 30 s perto de 60 FPS; campanha completa, áudio e controle físico ainda pendentes. |
+## Initial game scope
 
-Outros perfis e o fluxo genérico são experimentais. A existência de um preset ou a detecção de um `.exe` não comprova compatibilidade. Não há promessa de suporte a qualquer jogo DirectX 9, de 4K, de 120/155 FPS ou de funcionamento em todos os chips M1–M5.
+| Game | Recipe | Current limit |
+|---|---|---|
+| Need for Speed Underground 2 | Direct3D 9 → Metal, x87sidecar, Windows 7, consistent `C:\Games\NFSU2` path and registry | Tested executable edition only; existing game-folder plugins/settings are preserved |
+| GTA San Andreas | Direct3D 9 → Metal, copied renderer adjustment, Windows 7, 60 FPS cap | Tested user-supplied executable edition only; no executable replacement |
+| Splinter Cell Conviction | Existing local prepared apps can still be opened | Experimental; character voices remain unresolved. Not part of this initial preparation release |
 
-## FPS: limite, medição e jogabilidade
+The accepted executable hashes and recipe versions are in [`scripts/game-profiles.json`](scripts/game-profiles.json). Unknown editions are rejected before preparing a runtime. An edition match is a compatibility gate, not an authenticity or malware check. Existing game-folder fixes are retained; this release does not yet acquire every third-party game mod automatically.
 
-O cartão **Limite sugerido** mostra uma sugestão do perfil. A taxa de atualização da tela e o modelo do chip não determinam o FPS que o jogo conseguirá renderizar. Confirme a configuração aplicada e meça uma partida em primeiro plano.
+The original local NFS/GTA sessions were playable. The new donor-free runtime booted a fresh Windows prefix and ran a command successfully; its generated NFS/GTA launchers passed package signing, but a new playable session has not yet been verified. Fresh-prefix NFS testing exposed a startup failure; the recipe is still under diagnosis. Those results do not guarantee a sustained frame rate, every mission, or every Mac. GTA stays capped at 60 FPS because higher rates caused problems in user testing. No 4K/60 or universal-conversion claim is made.
 
-O contador é um aplicativo separado com adaptadores para registros WineD3D e Metal HUD. Ele calcula médias por intervalo; não representa mínimo por quadro, “1% low” ou uma medição universal de qualquer jogo. Na versão local auditada, **Command + Option + 9** mostra ou oculta o painel.
+## Updates inside BTP
 
-Como evidência de diagnóstico, o registro do NFS de 17/10/2026 às 18:01 contém 115 médias por intervalo entre 50,25 e 115,62 FPS, com média 100,29 FPS. A sessão GTA das 18:08 contém 34 médias entre 49,06 e 52,01 FPS, com média 51,39 FPS. Esses registros não têm uma rota de gameplay comparável documentada e não servem como benchmark de “FPS cravado”.
+Open **BTP → Updates…** or use the circular arrow in the header. Automatic checks can be disabled. You choose when to install and relaunch.
 
-Os antigos números promocionais de 4K/60, 120 e 155 FPS foram retirados por não terem validação reproduzível suficiente. Testes futuros devem registrar jogo/versão, runtime, resolução renderizada, qualidade, limite, duração e trecho jogado.
+Updates use [Sparkle](https://sparkle-project.org/), an HTTPS feed, and Ed25519-signed archives. Before an offered update proceeds, BTP saves and verifies a copy of its previous app bundle in `~/Library/Application Support/Breaking the Pattern/Backups/Updates/`. Updating BTP does not replace generated game apps, prefixes, or saves. New game preparation uses the new recipes; existing game apps stay on their previous components until deliberately prepared again.
 
-## Como usar
+Install BTP in a local Applications folder. A test from a synchronized Documents folder failed to replace the app; the same signed update installed and relaunched successfully from a local Application Support test location.
 
-1. **Adicione a pasta da sua cópia do jogo.** O BTP procura o executável e os caminhos exigidos pelo perfil.
-2. **Se uma mídia de instalação compatível for detectada**, use a etapa de extração. O suporte depende do formato e da organização da mídia; a extração não é universal.
-3. **Clique em BREAK para preparar o app.** Para a edição Conviction identificada pelo perfil, o BTP baixa o FusionFix oficial com checksum fixo, guarda as configurações anteriores e usa Metal em janela. Outras edições precisam de validação própria.
+## What actually runs
 
-    O estado **Preparado** indica que a preparação terminou ou que um app existente foi encontrado. Não equivale a “jogável verificado”.
-4. **Abra o jogo e teste.** Verifique carregamento, imagem, áudio, teclado/controle e uma partida de pelo menos um minuto. Saia normalmente e confirme que as opções e o progresso continuam disponíveis ao reabrir.
+The BTP interface and launchers are native Swift/ARM64 applications. The game remains its Windows executable. [Wine](https://github.com/athei/wine-build) provides Windows APIs, Rosetta runs Intel code, [x87sidecar](https://github.com/athei/x87sidecar) assists compatible x87 workloads, and [mtld3d](https://github.com/athei/mtld3d) translates Direct3D 9 to Metal.
 
-A checagem de arquivos verifica presença dos caminhos esperados. Ela não autentica cada arquivo, não garante integridade total e não é um antivírus. Tamanho de executável, sozinho, não identifica malware.
+BTP does not decompile a game into a new native Mac source project. “HyperMetal” and “Neural” are project labels for these components; they do not imply use of Apple's Neural Engine. APFS cloning can share disk blocks initially; game data, caches, and backups still consume storage.
 
-O método local e os limites da validação estão em [Método e validação](docs/METODO-E-VALIDACAO.md).
+The separate FPS overlay toggles with **Command + Option + 9**. Its Wine/Metal adapters report interval averages, not universal game coverage or per-frame minimums.
 
-## Ambiente de desenvolvimento
+## Build and contribute
 
-- O ambiente verificado é um **Mac com Apple M5 Pro e macOS 26.7.1**. Compatibilidade com outros Macs ou versões do macOS ainda depende de teste.
-- A interface pode ser compilada com Swift e as ferramentas de desenvolvimento da Apple. A versão mínima de compilação da interface não garante que o runtime do jogo funcione nessa mesma versão do macOS.
-- Os scripts usam componentes de runtime locais. O fluxo existente obtém esses componentes de `~/Applications/Need for Speed Underground 2.app/Contents/Resources`; scripts que aceitam `BTP_DONOR_RESOURCES` permitem indicar outra origem preparada.
-- Clonar o repositório não fornece um jogo, um ambiente Windows completo ou todos os componentes necessários. Prepare as dependências locais antes de usar o fluxo de build.
-- Assinaturas locais ad hoc não equivalem a notarização Apple ou distribuição pública validada.
+On an Apple Silicon development Mac with Apple's command-line tools and Python 3:
 
-Os jogos e seus saves ficam em diretórios locais de dados; preserve esses arquivos antes de recriar um ambiente. Apps, prefixos e configurações gerados são artefatos de teste até que sua execução seja validada.
+```sh
+bash scripts/build.sh --build-only
+python3 tests/test_runtime.py
+python3 tests/test_packaging.py
+python3 tests/test_splinter_profile.py
+```
 
-O script legado de GTA requer componentes fornecidos localmente em `patches/gtasa`, ausentes na distribuição pública. Preserve o aplicativo funcional e seus saves; a recodificação desse perfil ainda exige revisão.
+The build downloads pinned Python and Sparkle dependencies and compiles the launchers/helpers. It does not need a game donor. `--install` publishes a verified build to the local Applications folder and the central app archive, preserving previous versions.
 
-## Código e componentes
+Runtime versions, download URLs, checksums, and source links are in [`scripts/runtime-manifest.json`](scripts/runtime-manifest.json). The initial runtime excludes Apple's D3DMetal/GPTK components. See [third-party notices](THIRD_PARTY.md) and [release instructions](docs/RELEASING.md).
 
-A licença MIT do BTP cobre o código próprio do projeto. Wine, x87sidecar, mtld3d, correções e demais componentes mantêm suas licenças e atribuições. Arquivos comerciais de jogos, executáveis e saves devem ser fornecidos localmente pelo usuário e ficar fora de uma distribuição pública do projeto.
+Report the game edition, runtime version, exact symptom, graphics settings, and reproducible steps. A new confirmed fix can become a versioned recipe; unverified attempts do not become automatic rules.
 
-## ☕ Apoie o projeto
-
-O BTP é um projeto experimental de compatibilidade de jogos de PC no Mac. Relatos reproduzíveis ajudam a separar preparação bem-sucedida de jogabilidade real.
-
-<div align="center">
-
-[![Doar via PayPal](https://img.shields.io/badge/Apoiar-PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white)](https://www.paypal.com/donate/?business=uildsonaraujo@gmail.com&currency_code=BRL)
-
-**Chave Pix / E-mail PayPal:** `uildsonaraujo@gmail.com`
-
-[Repositório do projeto](https://github.com/WennyLife/breaking-the-pattern)
-
-</div>
+[Support via PayPal](https://www.paypal.com/donate/?business=uildsonaraujo@gmail.com&currency_code=BRL) · [MIT license for BTP code](LICENSE)

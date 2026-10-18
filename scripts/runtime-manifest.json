@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "runtime_id": "wine-cx-26.3.0-9-x87-1.9.0",
+  "minimum_macos": 15,
+  "components": {
+    "wine": {
+      "version": "cx-26.3.0-9",
+      "url": "https://github.com/athei/wine-build/releases/download/cx-26.3.0-9/wine-cx-26.3.0-9-macos-x86_64.tar.xz",
+      "sha256": "af3682051414eeffa5be48584a671790fd3852e980ff5acd38facff6f4bff1e9",
+      "size": 235425012,
+      "unpacked_limit": 1800000000,
+      "source": "https://github.com/athei/wine/tree/93429c6e7c8"
+    },
+    "x87": {
+      "version": "v1.9.0",
+      "url": "https://github.com/athei/x87sidecar/releases/download/v1.9.0/x87sidecar.tar.xz",
+      "sha256": "104098b0ba8baed37d4d63cf62ab3b55493889b8fe9ee225cad8febcd6bc1e78",
+      "size": 181432,
+      "unpacked_limit": 3000000,
+      "source": "https://github.com/athei/x87sidecar/tree/v1.9.0"
+    },
+    "python": {
+      "version": "3.13.16+20261013",
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261013/cpython-3.13.16%2B20261013-aarch64-apple-darwin-install_only_stripped.tar.gz",
+      "sha256": "16a5332fb0dcb77f163fc8f8cbccd95be1644cc53e68e5d2a79f50afd6680a0e",
+      "size": 25268458,
+      "unpacked_limit": 120000000,
+      "source": "https://github.com/astral-sh/python-build-standalone/releases/tag/20261013"
+    }
+  }
+}

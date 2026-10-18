@@ -13,7 +13,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-DONOR_RESOURCES="${BTP_DONOR_RESOURCES:-$HOME/Applications/Need for Speed Underground 2.app/Contents/Resources}"
+if [[ -x "$SCRIPT_DIR/Python/bin/python3" ]]; then export PATH="$SCRIPT_DIR/Python/bin:$PATH"; fi
+DONOR_RESOURCES="${BTP_RUNTIME_RESOURCES:-${BTP_DONOR_RESOURCES:-}}"
 APPS_DIR="${BTP_APPS_DIR:-$HOME/Applications}"
 
 TITLE="" GAME_DIR="" EXE="" ICON="" RENDERER="auto" WINVER="auto" GAME_ARGS="" OVERRIDES="dinput8=n,b;winemenubuilder.exe=" LINK=0
@@ -34,6 +35,18 @@ done
 [[ -n "$TITLE" && -n "$GAME_DIR" && -n "$EXE" ]] || { echo "Faltam --title, --game-dir ou --exe" >&2; exit 2; }
 GAME_DIR="$(cd "$GAME_DIR" && pwd)"
 [[ -f "$GAME_DIR/$EXE" ]] || { echo "Executável não encontrado: $GAME_DIR/$EXE" >&2; exit 1; }
+PROFILE_FOLDER=""
+if [[ -f "$SCRIPT_DIR/btp-game-profile.py" ]]; then
+    SETTINGS="$(python3 -I -B "$SCRIPT_DIR/btp-game-profile.py" --settings "$GAME_DIR/$EXE")"
+    IFS='|' read -r PROFILE_FOLDER PROFILE_RENDERER PROFILE_WINVER <<< "$SETTINGS"
+    if [[ -n "$PROFILE_FOLDER" ]]; then
+        [[ "$RENDERER" != auto ]] || RENDERER="$PROFILE_RENDERER"
+        [[ "$WINVER" != auto ]] || WINVER="$PROFILE_WINVER"
+    fi
+fi
+if [[ -z "$DONOR_RESOURCES" ]]; then
+    DONOR_RESOURCES="$(python3 -I -B "$SCRIPT_DIR/btp-runtime.py" --ensure)"
+fi
 [[ -d "$DONOR_RESOURCES/GameRuntime.app" ]] || { echo "Runtime não encontrado em $DONOR_RESOURCES" >&2; exit 1; }
 
 # Identificadores derivados do título: "Max Payne 2" -> max-payne-2 / MaxPayne2
@@ -41,11 +54,12 @@ SLUG="$(printf '%s' "$TITLE" | iconv -f UTF-8 -t ASCII//TRANSLIT 2>/dev/null | t
 SLUG="${SLUG:-jogo}"
 FOLDER_ID="$(printf '%s' "$TITLE" | iconv -f UTF-8 -t ASCII//TRANSLIT 2>/dev/null | sed -E 's/[^A-Za-z0-9]//g')"
 FOLDER_ID="${FOLDER_ID:-Game}"
+if [[ -n "$PROFILE_FOLDER" ]]; then FOLDER_ID="$PROFILE_FOLDER"; fi
 DATA_DIR="$HOME/Library/Application Support/$TITLE"
 TARGET_APP="$APPS_DIR/$TITLE.app"
 # Um jogo pode ser o próprio doador (NFSU2). Resolva links antes de qualquer
 # criação/alteração para nunca substituir o runtime que ainda vamos copiar.
-python3 -I - "$TARGET_APP" "$DONOR_RESOURCES" << 'PY'
+python3 -I -B - "$TARGET_APP" "$DONOR_RESOURCES" << 'PY'
 from pathlib import Path
 import sys
 
@@ -76,16 +90,16 @@ APP_STAGE_DIR="$(mktemp -d "$APPS_DIR/.btp-build.XXXXXX")"
 APP_STAGE="$APP_STAGE_DIR/Game.app"
 
 echo "[1/5] Analisando o executável $(basename "$EXE")..."
-INFO="$(python3 -I "$SCRIPT_DIR/btp-peinfo.py" "$GAME_DIR/$EXE" --icon "$WORK/exe.ico")"
-ARCH="$(printf '%s' "$INFO" | python3 -I -c 'import json,sys; print(json.load(sys.stdin)["arch"])')"
+INFO="$(python3 -I -B "$SCRIPT_DIR/btp-peinfo.py" "$GAME_DIR/$EXE" --icon "$WORK/exe.ico")"
+ARCH="$(printf '%s' "$INFO" | python3 -I -B -c 'import json,sys; print(json.load(sys.stdin)["arch"])')"
 if [[ "$RENDERER" == "auto" ]]; then
-    RENDERER="$(printf '%s' "$INFO" | python3 -I -c 'import json,sys; print(json.load(sys.stdin)["renderer"])')"
+    RENDERER="$(printf '%s' "$INFO" | python3 -I -B -c 'import json,sys; print(json.load(sys.stdin)["renderer"])')"
 fi
 [[ "$RENDERER" == "wined3d" ]] && RENDERER=""
 if [[ "$RENDERER" == "dxgi=gptk" && "$ARCH" != "x64" ]]; then
     RENDERER="dxgi=dxmt"   # o backend D3DMetal só existe em 64 bits
 fi
-YEAR="$(printf '%s' "$INFO" | python3 -I -c 'import json,sys; print(json.load(sys.stdin).get("year", 0))')"
+YEAR="$(printf '%s' "$INFO" | python3 -I -B -c 'import json,sys; print(json.load(sys.stdin).get("year", 0))')"
 # Jogos anteriores a 2012 só conhecem até o Windows 7; alguns (ex.: Splinter Cell Conviction)
 # recusam abrir com "Operating System not supported" se o Wine se apresenta como Windows 10.
 if [[ "$WINVER" == "auto" ]]; then
@@ -99,7 +113,9 @@ if [[ -z "$ICON_SRC" && -s "$WORK/exe.ico" ]]; then ICON_SRC="$WORK/exe.ico"; fi
 if [[ -n "$ICON_SRC" && "$ICON_SRC" == *.icns ]]; then
     cp "$ICON_SRC" "$WORK/GameIcon.icns"
 else
-    if [[ -z "$ICON_SRC" ]] || ! xcrun swift "$SCRIPT_DIR/btp-make-icon.swift" "$ICON_SRC" "$WORK/base.png" 2>/dev/null; then
+    ICON_COMMAND=(xcrun swift "$SCRIPT_DIR/btp-make-icon.swift")
+    if [[ -x "$SCRIPT_DIR/BTPMakeIcon" ]]; then ICON_COMMAND=("$SCRIPT_DIR/BTPMakeIcon"); fi
+    if [[ -z "$ICON_SRC" ]] || ! "${ICON_COMMAND[@]}" "$ICON_SRC" "$WORK/base.png" 2>/dev/null; then
         cp "$ROOT_DIR/src/AppIcon.png" "$WORK/base.png" 2>/dev/null || cp "$SCRIPT_DIR/AppIcon.png" "$WORK/base.png"
     fi
     mkdir -p "$WORK/GameIcon.iconset"
@@ -113,7 +129,11 @@ fi
 echo "[3/5] Preparando o prefixo Wine (Zero-Clutter APFS Storage Engine)..."
 mkdir -p "$DATA_DIR/Registros"
 if [[ ! -d "$DATA_DIR/prefix-metal" ]]; then
-    cp -Rc "$DONOR_RESOURCES/PrefixSeed" "$DATA_DIR/prefix-metal"
+    if [[ -d "$DONOR_RESOURCES/PrefixSeed" ]]; then
+        cp -Rc "$DONOR_RESOURCES/PrefixSeed" "$DATA_DIR/prefix-metal"
+    else
+        python3 -I -B "$SCRIPT_DIR/btp-runtime.py" --init-prefix "$DATA_DIR/prefix-metal" --resources "$DONOR_RESOURCES"
+    fi
 fi
 mkdir -p "$DATA_DIR/prefix-metal/dosdevices" "$DATA_DIR/prefix-metal/drive_c/Games"
 ln -sfn "/" "$DATA_DIR/prefix-metal/dosdevices/z:"
@@ -144,12 +164,13 @@ if [[ -n "$WINVER" ]]; then
     REG_LOG="$(mktemp "$DATA_DIR/Registros/config-windows-$(date +%Y%m%d-%H%M%S)-XXXXXX")"
     if ! WINEPREFIX="$DATA_DIR/prefix-metal" WINEARCH=wow64 WINELOADERNOEXEC=1 WINEDEBUG=-all \
     WINESERVER="$DONOR_RESOURCES/wine/bin/wineserver" \
+        python3 -I -B -c 'import subprocess,sys; sys.exit(subprocess.run(sys.argv[1:], timeout=40).returncode)' \
         "$DONOR_RESOURCES/GameRuntime.app/Contents/MacOS/wine" reg add \
         "HKCU\\Software\\Wine\\AppDefaults\\$(basename "$EXE")" /v Version /t REG_SZ /d "$WINVER" /f >"$REG_LOG" 2>&1; then
         echo "Falha ao configurar $WINVER; app atual preservado. Registro: $REG_LOG" >&2
         exit 1
     fi
-    if ! WINEPREFIX="$DATA_DIR/prefix-metal" "$DONOR_RESOURCES/wine/bin/wineserver" -w >>"$REG_LOG" 2>&1; then
+    if ! WINEPREFIX="$DATA_DIR/prefix-metal" python3 -I -B -c 'import subprocess,sys; sys.exit(subprocess.run(sys.argv[1:], timeout=40).returncode)' "$DONOR_RESOURCES/wine/bin/wineserver" -w >>"$REG_LOG" 2>&1; then
         echo "Falha ao concluir a configuração do Wine; app atual preservado. Registro: $REG_LOG" >&2
         exit 1
     fi
@@ -157,6 +178,7 @@ fi
 [[ -f "$GAME_IN_PREFIX/$EXE" ]] || { echo "Executável não encontrado no prefixo: $GAME_IN_PREFIX/$EXE" >&2; exit 1; }
 EXE_DIR_REL="$(dirname "$EXE")"
 # O launcher usa a pasta do .exe como cwd, inclusive para executáveis aninhados.
+if [[ ! -f "$GAME_IN_PREFIX/$EXE_DIR_REL/mtld3d.conf" ]]; then
 cat > "$GAME_IN_PREFIX/$EXE_DIR_REL/mtld3d.conf" << 'EOF'
 shader.asyncCompile = true
 depth.aliasSameSize = false
@@ -165,12 +187,18 @@ present.maxFrameLatency = 1
 query.flushImmediate = true
 query.eventImmediate = true
 EOF
+fi
+
+if [[ -f "$SCRIPT_DIR/btp-game-profile.py" ]]; then
+    python3 -I -B "$SCRIPT_DIR/btp-game-profile.py" --game "$GAME_IN_PREFIX" --exe "$EXE" \
+        --prefix "$DATA_DIR/prefix-metal" --resources "$DONOR_RESOURCES" --data "$DATA_DIR"
+fi
 
 # Receita específica reproduzida em cópia isolada. O helper aceita apenas a
 # edição testada, baixa a correção oficial por checksum e guarda configurações.
 if [[ "$(basename "$EXE" | tr '[:upper:]' '[:lower:]')" == "conviction_game.exe" ]]; then
     echo "[3/5] Preparando perfil experimental Conviction em janela..."
-    python3 -I "$SCRIPT_DIR/btp-splinter-profile.py" \
+    python3 -I -B "$SCRIPT_DIR/btp-splinter-profile.py" \
         --game "$GAME_IN_PREFIX/$EXE_DIR_REL" --prefix "$DATA_DIR/prefix-metal" --data "$DATA_DIR"
     OVERRIDES+=";version=n,b"
 fi
@@ -183,6 +211,13 @@ cp "$WORK/GameIcon.icns" "$APP_STAGE/Contents/Resources/GameIcon.icns"
 cp -f "$DONOR_RESOURCES/RuntimeBootstrap" "$APP_STAGE/Contents/Resources/RuntimeBootstrap"
 cp -f "$DONOR_RESOURCES/x87sidecar" "$APP_STAGE/Contents/Resources/x87sidecar"
 ln -sfn "GameRuntime.app/Contents/Resources/wine" "$APP_STAGE/Contents/Resources/wine"
+for RECORD in Runtime.json Attributions.txt; do
+    if [[ -f "$DONOR_RESOURCES/$RECORD" ]]; then cp "$DONOR_RESOURCES/$RECORD" "$APP_STAGE/Contents/Resources/"; fi
+done
+if [[ "$(basename "$EXE" | tr '[:upper:]' '[:lower:]')" == "gta_sa.exe" && -f "$SCRIPT_DIR/btp-game-profile.py" ]]; then
+    python3 -I -B "$SCRIPT_DIR/btp-game-profile.py" --patch-gta-runtime "$APP_STAGE/Contents/Resources"
+    OVERRIDES+=";vorbisFile=n,b;vorbisHooked=n,b"
+fi
 
 # Valores escritos com %q para sobreviver a espaços, aspas e barras invertidas no launch-game.sh.
 EXE_WIN="C:\\$(printf '%s' "$GAME_REL/$EXE" | tr '/' '\\')"
@@ -273,9 +308,7 @@ fi
 chmod 755 "$APP_STAGE/Contents/MacOS/BTPGame"
 
 echo "[5/5] Assinando o aplicativo..."
-for ATTR in com.apple.FinderInfo com.apple.ResourceFork; do
-    xattr -r -d "$ATTR" "$APP_STAGE" 2>/dev/null || true
-done
+if [[ -f "$SCRIPT_DIR/btp-clean-metadata.py" ]]; then python3 -I -B "$SCRIPT_DIR/btp-clean-metadata.py" "$APP_STAGE"; fi
 plutil -lint "$APP_STAGE/Contents/Info.plist"
 bash -n "$APP_STAGE/Contents/Resources/launch-game.sh"
 codesign --force --deep --sign - "$APP_STAGE"
