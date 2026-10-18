@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "revision": 1,
+  "scope": "Preparation decisions, not gameplay certification. Per-game fixes stay in game-profiles.json.",
+  "rules": [
+    {
+      "id": "graphics.d3d12.x64",
+      "when": {"arch_in": ["x64"], "uses_any": ["d3d12.dll"]},
+      "set": {"renderer": "dxgi=gptk"},
+      "evidence": "Existing scanner heuristic. GPTK is not included in the public runtime; not a supported game profile."
+    },
+    {
+      "id": "graphics.d3d10_11",
+      "when": {"uses_any": ["d3d11.dll", "dxgi.dll", "d3d10.dll", "d3d10_1.dll"]},
+      "set": {"renderer": "dxgi=dxmt"},
+      "evidence": "Existing scanner heuristic; API detection does not prove gameplay."
+    },
+    {
+      "id": "graphics.d3d9",
+      "when": {"uses_any": ["d3d9.dll"]},
+      "set": {"renderer": "d3d9=mtld3d"},
+      "evidence": "Used by the independently prepared NFSU2 and GTA SA sessions confirmed on 2026-10-18. Other games require validation."
+    },
+    {
+      "id": "cpu.i386.x87",
+      "when": {"arch_in": ["i386"]},
+      "set": {"x87": true},
+      "evidence": "Existing i386 launcher rule, used by the tested NFSU2 and GTA SA editions."
+    },
+    {
+      "id": "windows.legacy.before2012",
+      "when": {"year_min": 1, "year_max_exclusive": 2012},
+      "set": {"windows": "win7"},
+      "evidence": "Existing preparation heuristic. COFF date is a hint, not proof of required Windows version; explicit game profiles take precedence."
+    }
+  ]
+}

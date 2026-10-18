@@ -1,6 +1,6 @@
 # Método local e validação — 17/10/2026
 
-> Atualização18/10/2026: o BTP0.2.0 tem interface em português/inglês, atualizador Sparkle e provedor independente de runtime. Os resultados e os limites novos estão em [Validação0.2.0](VALIDATION-0.2.0.md). As referências a doador e à versão0.1.2 abaixo são históricas; as novas receitas ainda não tiveram uma partida confirmada.
+> Atualização18/10/2026: o BTP tem interface em português/inglês, atualizador Sparkle e provedor independente de runtime. As partidas NFS/GTA das cópias independentes foram confirmadas por você, com limites descritos em [Validação0.2.0](VALIDATION-0.2.0.md). A versão0.2.1 acrescenta a [base de regras reutilizáveis](COMPATIBILITY-KNOWLEDGE.md), preservando as decisões anteriores. As referências a doador e à versão0.1.2 abaixo são históricas.
 
 ## O que funcionou
 

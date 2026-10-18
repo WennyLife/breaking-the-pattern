@@ -2,9 +2,9 @@
 
 [English](README.md) · [Publicações](https://github.com/WennyLife/breaking-the-pattern/releases)
 
-**0.2.0 Preview · português e inglês · Mac Apple Silicon · macOS 15 ou posterior**
+**0.2.1 Preview · português e inglês · Mac Apple Silicon · macOS 15 ou posterior**
 
-O ZIP/DMG0.2.0 foi gerado e verificado localmente; o envio público dos instaladores ainda está pendente. O feed fica sem ofertas até os pacotes assinados serem publicados.
+O ZIP/DMG0.2.1 foi gerado e verificado localmente; o envio público dos instaladores ainda está pendente. O feed fica sem ofertas até os pacotes assinados serem publicados.
 
 O BTP prepara um aplicativo Mac e um ambiente de compatibilidade para a pasta de um jogo que você fornece. Ele obtém o próprio motor, confere os downloads por SHA-256 e aplica receitas por edição. Não precisa de um NFS doador nem de Xcode no Mac final.
 
@@ -24,6 +24,8 @@ Use **BTP → Atualizações…** ou a seta circular no cabeçalho. A verificaç
 O Sparkle verifica a assinatura Ed25519 do pacote. Antes de prosseguir, o BTP guarda e verifica a versão anterior em `~/Library/Application Support/Breaking the Pattern/Backups/Updates/`. Atualizar a ferramenta não substitui apps de jogos, prefixos nem saves. Para usar uma receita nova num jogo existente, a preparação precisa ser feita deliberadamente.
 
 ## Escopo e limites reais
+
+O BTP reúne [regras reutilizáveis e receitas por jogo](docs/COMPATIBILITY-KNOWLEDGE.md). A base versionada já orienta a preparação e registra as decisões em `Registros/CompatibilityPlan.json`. Uma solução específica só passa a outros jogos quando suas condições também forem comprovadas; aprendizado autônomo ainda não foi implementado.
 
 - NFSU2: receita Direct3D9→Metal/x87, Windows7 e caminho/registro coerentes em `C:\Games\NFSU2`.
 - GTA SA: receita Metal/x87, renderizador ajustado em cópia e limite60 FPS, preservando os demais ajustes de qualidade.

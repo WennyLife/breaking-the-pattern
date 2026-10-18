@@ -100,11 +100,11 @@ if [[ "$RENDERER" == "dxgi=gptk" && "$ARCH" != "x64" ]]; then
     RENDERER="dxgi=dxmt"   # o backend D3DMetal só existe em 64 bits
 fi
 YEAR="$(printf '%s' "$INFO" | python3 -I -B -c 'import json,sys; print(json.load(sys.stdin).get("year", 0))')"
-# Jogos anteriores a 2012 só conhecem até o Windows 7; alguns (ex.: Splinter Cell Conviction)
-# recusam abrir com "Operating System not supported" se o Wine se apresenta como Windows 10.
+# Per-game/explicit choices take precedence over the reusable knowledge base.
 if [[ "$WINVER" == "auto" ]]; then
-    if [[ "$YEAR" -gt 0 && "$YEAR" -lt 2012 ]]; then WINVER="win7"; else WINVER=""; fi
+    WINVER="$(printf '%s' "$INFO" | python3 -I -B -c 'import json,sys; print(json.load(sys.stdin)["compatibility"]["windows"])')"
 fi
+USE_X87="$(printf '%s' "$INFO" | python3 -I -B -c 'import json,sys; print(int(json.load(sys.stdin)["compatibility"]["x87"]))')"
 echo "      Arquitetura: $ARCH | Compilado em: ${YEAR/#0/?} | Motor gráfico: ${RENDERER:-WineD3D padrão} | Windows: ${WINVER:-padrão (10)}"
 
 echo "[2/5] Gerando ícone do aplicativo..."
@@ -128,6 +128,8 @@ fi
 
 echo "[3/5] Preparando o prefixo Wine (Zero-Clutter APFS Storage Engine)..."
 mkdir -p "$DATA_DIR/Registros"
+python3 -I -B "$SCRIPT_DIR/btp-rules.py" --record "$DATA_DIR/Registros/CompatibilityPlan.json" \
+    --analysis "$INFO" --renderer "$RENDERER" --windows "$WINVER" --profile "$PROFILE_FOLDER"
 if [[ ! -d "$DATA_DIR/prefix-metal" ]]; then
     if [[ -d "$DONOR_RESOURCES/PrefixSeed" ]]; then
         cp -Rc "$DONOR_RESOURCES/PrefixSeed" "$DATA_DIR/prefix-metal"
@@ -227,7 +229,7 @@ fi
 # Valores escritos com %q para sobreviver a espaços, aspas e barras invertidas no launch-game.sh.
 EXE_WIN="C:\\$(printf '%s' "$GAME_REL/$EXE" | tr '/' '\\')"
 X87_LINE=""
-[[ "$ARCH" == "i386" ]] && X87_LINE='export ROSETTA_X87_PATH="$RESOURCES/x87sidecar"'
+[[ "$USE_X87" == 1 ]] && X87_LINE='export ROSETTA_X87_PATH="$RESOURCES/x87sidecar"'
 COMPAT=$'v=5\nname='"$SLUG"';exe='"$(basename "$EXE")"
 [[ -n "$RENDERER" ]] && COMPAT+=";$RENDERER"
 {

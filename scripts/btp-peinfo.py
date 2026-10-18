@@ -6,6 +6,9 @@ Uso:
   btp-peinfo.py JOGO.exe --icon saida.ico -> também extrai o ícone principal do .exe
 """
 import json
+import hashlib
+import importlib.util
+from pathlib import Path
 import re
 import struct
 import sys
@@ -13,6 +16,12 @@ import time
 
 RT_ICON = 3
 RT_GROUP_ICON = 14
+
+# Helpers run with Python -I: load only the trusted sibling shipped in BTP,
+# never a module from the user's game folder or PYTHONPATH.
+_spec = importlib.util.spec_from_file_location('btp_rules', Path(__file__).with_name('btp-rules.py'))
+_rules = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_rules)
 
 
 class PE:
@@ -122,17 +131,8 @@ class PE:
 
 
 def pick_renderer(arch, imports, strings):
-    """Escolhe o backend gráfico do BTP HyperMetal Engine pelo que o .exe usa."""
-    def uses(*dlls):
-        return any(d in imports for d in dlls) or any(d.encode() in strings for d in dlls)
-
-    if arch == "x64" and uses("d3d12.dll"):
-        return "dxgi=gptk"
-    if uses("d3d11.dll", "dxgi.dll", "d3d10.dll", "d3d10_1.dll"):
-        return "dxgi=dxmt"
-    if uses("d3d9.dll"):
-        return "d3d9=mtld3d"
-    return ""  # D3D8, DirectDraw ou OpenGL: fica no WineD3D padrão
+    """Escolhe o backend pela base de regras versionada do BTP."""
+    return _rules.evaluate(arch, 0, imports, strings)['renderer']
 
 
 def main():
@@ -148,12 +148,16 @@ def main():
     # Ano de compilação do .exe (cabeçalho COFF). Valores fora de 1995–2035 são lixo
     # de compiladores que gravam hash no lugar da data; nesse caso fica 0.
     year = time.gmtime(pe.timestamp).tm_year if pe.timestamp else 0
+    year = year if 1995 <= year <= 2035 else 0
+    compatibility = _rules.evaluate(arch, year, imports, strings)
     info = {
         "arch": arch,
-        "year": year if 1995 <= year <= 2035 else 0,
+        "year": year,
         "gui": pe.subsystem == 2,
         "imports": imports,
-        "renderer": pick_renderer(arch, imports, strings),
+        "renderer": compatibility['renderer'],
+        "compatibility": compatibility,
+        "executable_sha256": hashlib.sha256(data).hexdigest(),
         "icon": False,
     }
     if "--icon" in sys.argv:

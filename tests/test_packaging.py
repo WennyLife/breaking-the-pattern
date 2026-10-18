@@ -81,7 +81,8 @@ with tempfile.TemporaryDirectory(prefix='btp-script-tests-') as temporary:
         original_data = 'DATA_DIR="$HOME/Library/Application Support/$TITLE"'
         assert source.count(original_data) == 1
         put(scripts / 'break-game.sh', source.replace(original_data, 'DATA_DIR="$BTP_TEST_DATA/$TITLE"'))
-        put(scripts / 'btp-peinfo.py', 'import json\nprint(json.dumps({"arch":"i386","year":2010,"renderer":"d3d9=mtld3d"}))\n')
+        put(scripts / 'btp-peinfo.py', 'import json\nprint(json.dumps({"arch":"i386","year":2010,"renderer":"d3d9=mtld3d","compatibility":{"windows":"win7","x87":True}}))\n')
+        shutil.copy2(SOURCE.with_name('btp-rules.py'), scripts / 'btp-rules.py')
         put(scripts / 'BTPGameLauncher', '#!/bin/bash\nexit 0\n', True)
         stubs = case / 'stubs'
         put(stubs / 'codesign', '#!/bin/bash\n'

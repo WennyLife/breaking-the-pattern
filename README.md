@@ -8,7 +8,7 @@
 
 [Releases](https://github.com/WennyLife/breaking-the-pattern/releases) · [Português](README.pt-BR.md) · [How it works](docs/METODO-E-VALIDACAO.md)
 
-**0.2.0 Preview · English / Português · macOS 15+ · Apple Silicon**
+**0.2.1 Preview · English / Português · macOS 15+ · Apple Silicon**
 
 </div>
 
@@ -18,7 +18,7 @@ BTP prepares a separate Mac launcher and a Wine compatibility environment for a 
 
 ## Getting started
 
-The 0.2.0 ZIP/DMG preview is built and verified locally. Its public binary upload is pending; this repository currently provides the source and build instructions. The update feed remains empty until signed assets are published.
+The 0.2.1 ZIP/DMG preview is built and verified locally. Its public binary upload is pending; this repository currently provides the source and build instructions. The update feed remains empty until signed assets are published.
 
 1. Download the current DMG or ZIP from [Releases](https://github.com/WennyLife/breaking-the-pattern/releases). Copy BTP to your Applications folder.
 2. Open BTP and select your game folder. Install Rosetta through macOS if it is missing. Internet access is needed for the first runtime download (about 235 MB; roughly 1.3 GB expanded).
@@ -30,6 +30,8 @@ Use **BTP → Language / Idioma** to choose English, Português (Brasil), or the
 This preview is locally ad hoc signed, not Apple-notarized. First launch on another Mac and a complete clean-machine game installation still need independent validation.
 
 ## Initial game scope
+
+BTP combines [reusable compatibility rules and edition-specific recipes](docs/COMPATIBILITY-KNOWLEDGE.md). The bundled knowledge catalog drives preparation and records decisions in `Registros/CompatibilityPlan.json`. Game-specific fixes are not transferred to other titles without matching evidence; autonomous learning is not implemented.
 
 | Game | Recipe | Current limit |
 |---|---|---|
