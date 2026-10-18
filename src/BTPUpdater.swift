@@ -6,7 +6,15 @@ import Sparkle
 final class BTPUpdates: NSObject, ObservableObject, SPUUpdaterDelegate {
     static let shared = BTPUpdates()
     @Published var showSettings = false
-    @Published var isPreparingGame = false
+    @Published var isPreparingGame = false {
+        didSet {
+            if !isPreparingGame, let install = pendingInstall {
+                pendingInstall = nil
+                DispatchQueue.main.async(execute: install)
+            }
+        }
+    }
+    private var pendingInstall: (() -> Void)?
     @Published var automaticChecks = true
     private var controller: SPUStandardUpdaterController!
     private var observation: NSKeyValueObservation?
@@ -23,6 +31,13 @@ final class BTPUpdates: NSObject, ObservableObject, SPUUpdaterDelegate {
     func setAutomaticChecks(_ value: Bool) { controller.updater.automaticallyChecksForUpdates = value }
     func check() { showSettings = false; controller.checkForUpdates(nil) }
     @objc func showUpdates() { showSettings = true }
+
+    func updater(_ updater: SPUUpdater, shouldPostponeRelaunchForUpdate item: SUAppcastItem,
+                 untilInvokingBlock installHandler: @escaping () -> Void) -> Bool {
+        guard isPreparingGame else { return false }
+        pendingInstall = installHandler
+        return true
+    }
 
     func updater(_ updater: SPUUpdater, mayPerform updateCheck: SPUUpdateCheck) throws {
         if isPreparingGame {

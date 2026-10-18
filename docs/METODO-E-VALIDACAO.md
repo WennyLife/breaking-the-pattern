@@ -1,5 +1,7 @@
 # Método local e validação — 17/10/2026
 
+> Atualização18/10/2026: o BTP0.2.0 tem interface em português/inglês, atualizador Sparkle e provedor independente de runtime. Os resultados e os limites novos estão em [Validação0.2.0](VALIDATION-0.2.0.md). As referências a doador e à versão0.1.2 abaixo são históricas; as novas receitas ainda não tiveram uma partida confirmada.
+
 ## O que funcionou
 
 NFS Underground 2 e GTA San Andreas continuam como executáveis de Windows dentro de aplicativos Mac independentes. A interface BTP prepara esses aplicativos; não precisa ficar aberta para jogar. Não há tradução automática do código-fonte do jogo nem uma compilação nativa dele.
