@@ -14,6 +14,8 @@
 
 39 testes automatizados passaram, incluindo um teste nativo com cinco cenários da instalação (já disponível, instalação/verificação, cancelamento, erro e helper ausente). O teste de empacotamento também executa sete cenários transacionais. Build Swift arm64 e helper x86_64 assinados/verificados. Janela aberta e ampliada pela interface de 780 × 502 para 1054 × 664 pontos incluindo a barra de título.
 
+Também foi verificada uma cópia de interface isolada: jogo fictício, biblioteca privada e ausência/falha de instalação simuladas. A tela **Instalar e continuar**, o cancelamento sem preparo e o retorno com **Tentar novamente** foram observados pela interface. Essa cópia não é distribuída e não substitui uma primeira instalação real de Rosetta.
+
 ## Limites
 
 Este Mac já tem Rosetta. O diálogo oficial e uma primeira instalação real em outro Mac sem Rosetta não foram reproduzidos nesta rodada; a pessoa que relatou a falha precisa confirmar a nova preparação. Não desinstalamos o componente do sistema para simular esse cenário. Não há nova alegação de FPS/jogabilidade. As receitas de jogos não foram alteradas; a validação anterior de partidas está em [0.2.3](VALIDATION-0.2.3.md). O app continua com assinatura ad hoc, sem notarização Apple.

@@ -1,16 +1,16 @@
 <?xml version='1.0' encoding='utf-8'?>
-<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+<rss xmlns:ns0="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
   <channel>
     <title>Breaking the Pattern Updates</title>
     <link>https://github.com/WennyLife/breaking-the-pattern/releases</link>
     <item>
-      <title>BTP 0.2.3</title>
-      <pubDate>Sun, 18 Oct 2026 19:51:44 +0000</pubDate>
-      <sparkle:version>10</sparkle:version>
-      <sparkle:shortVersionString>0.2.3</sparkle:shortVersionString>
-      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-      <description>English: Automatic required components and tested NFSU2/GTA recipes. In-app signed updates, English/Portuguese interface, independent compatibility runtime, edition-specific NFS Underground 2 and GTA San Andreas recipes. No games included. Português: atualizações assinadas pelo app, interface em inglês/português, motor independente e receitas por edição para NFSU2/GTA SA. Sem jogos incluídos. Splinter Cell remains experimental and is not part of this initial release.</description>
-      <enclosure url="https://github.com/WennyLife/breaking-the-pattern/releases/download/v0.2.3/Breaking-the-Pattern-0.2.3.zip" length="33526011" type="application/octet-stream" sparkle:edSignature="YxrD2KZKYx0ZkVs7oe7fTiENcdZA+2GieZtu1s4eN+PTErWQFS2WAB5llp5dOScZMQgLVNRnOSVn9dG754XhAA==" />
+      <title>BTP 0.2.4</title>
+      <pubDate>Mon, 19 Oct 2026 13:45:26 +0000</pubDate>
+      <ns0:version>11</ns0:version>
+      <ns0:shortVersionString>0.2.4</ns0:shortVersionString>
+      <ns0:minimumSystemVersion>15.0</ns0:minimumSystemVersion>
+      <description>Português: BTP 0.2.4 oferece Instalar e continuar quando o Rosetta falta, aciona o instalador oficial do macOS com sua autorização e verifica o componente antes de retomar o preparo. Janela redimensionável e Tentar novamente após falha de preparação. English: guided Rosetta setup through the official macOS installer, resizable window and retry after preparation failures. No games included / Sem jogos incluídos. First Rosetta installation on a clean Mac still needs external confirmation.</description>
+      <enclosure url="https://github.com/WennyLife/breaking-the-pattern/releases/download/v0.2.4/Breaking-the-Pattern-0.2.4.zip" length="33536817" type="application/octet-stream" ns0:edSignature="2byuD6AAHyBhc2FyFyE+ZGrzbp1O0sa7gpxqkBZYqHVs48jjPPxsXQsKuacu2p54XPirwTIhQHkx2C5DfNrvDA==" />
     </item>
   </channel>
 </rss>
