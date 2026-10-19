@@ -12,15 +12,15 @@
 
 ### Prepare your Windows game folder to play on Mac.
 
-[![Version](https://img.shields.io/badge/version-0.2.3-25c95a?style=for-the-badge)](https://github.com/WennyLife/breaking-the-pattern/releases/tag/v0.2.3)
+[![Version](https://img.shields.io/badge/version-0.2.4-25c95a?style=for-the-badge)](https://github.com/WennyLife/breaking-the-pattern/releases/tag/v0.2.4)
 ![macOS](https://img.shields.io/badge/macOS-15%2B-24292f?style=for-the-badge&logo=apple)
 ![Apple Silicon](https://img.shields.io/badge/Mac-Apple%20Silicon-6f42c1?style=for-the-badge)
 
 **Bring your own supported game folder. BTP handles the preparation.**
 
-**[📥 Download for Mac (.dmg)](https://github.com/WennyLife/breaking-the-pattern/releases/download/v0.2.3/Breaking-the-Pattern-0.2.3.dmg)** · **[📦 Download ZIP](https://github.com/WennyLife/breaking-the-pattern/releases/download/v0.2.3/Breaking-the-Pattern-0.2.3.zip)**
+**[📥 Download for Mac (.dmg)](https://github.com/WennyLife/breaking-the-pattern/releases/download/v0.2.4/Breaking-the-Pattern-0.2.4.dmg)** · **[📦 Download ZIP](https://github.com/WennyLife/breaking-the-pattern/releases/download/v0.2.4/Breaking-the-Pattern-0.2.4.zip)**
 
-[Português (Brasil)](README.md) · English · [Release notes](https://github.com/WennyLife/breaking-the-pattern/releases/tag/v0.2.3)
+[Português (Brasil)](README.md) · English · [Release notes](https://github.com/WennyLife/breaking-the-pattern/releases/tag/v0.2.4)
 
 </div>
 
@@ -53,14 +53,16 @@ New games are added as their solutions pass gameplay validation. Splinter Cell C
 
 ## 📥 Installation
 
-1. Download **[BTP 0.2.3 DMG](https://github.com/WennyLife/breaking-the-pattern/releases/download/v0.2.3/Breaking-the-Pattern-0.2.3.dmg)** or ZIP.
+1. Download **[BTP 0.2.4 DMG](https://github.com/WennyLife/breaking-the-pattern/releases/download/v0.2.4/Breaking-the-Pattern-0.2.4.dmg)** or ZIP.
 2. Copy **Breaking the Pattern.app** to your local **Applications** folder.
 3. Open BTP and select the complete game folder.
 4. Click **BREAK**, wait for preparation, then choose **OPEN GAME**.
 
-**Requirements:** Apple Silicon Mac, macOS 15 or later, Rosetta and internet access for the first preparation. Install Rosetta through macOS if needed. The initial runtime download is about 235 MB and expands to roughly 1.3 GB.
+**Requirements:** Apple Silicon Mac, macOS 15 or later, Rosetta and internet access for the first preparation. If Rosetta is missing, BTP offers **Install and continue**: authorize the official macOS installer and preparation resumes after verification. If you cancel, you can retry from BTP. The initial runtime download is about 235 MB and expands to roughly 1.3 GB.
 
 This version is not Apple-notarized; first launch may require macOS approval. A complete installation on another physical Mac still needs validation.
+
+**New in 0.2.4:** guided Rosetta setup, a resizable window and **Try again** after preparation errors. First installation on a Mac without Rosetta still needs external confirmation. [Update validation →](docs/VALIDATION-0.2.4.md)
 
 ## 🔄 Updates inside BTP
 

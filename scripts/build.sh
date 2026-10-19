@@ -57,6 +57,21 @@ xcrun swiftc -O -target arm64-apple-macos14.0 "$ROOT_DIR/src/FPSOverlay.swift" -
 xcrun swiftc -O -target arm64-apple-macos14.0 "$ROOT_DIR/scripts/btp-make-icon.swift" -o "$APP_STAGE/Contents/Resources/BTPMakeIcon"
 python3 -I -B "$ROOT_DIR/scripts/btp-runtime.py" --stage-python "$APP_STAGE/Contents/Resources/Python"
 
+# Intel-only inert helper: LaunchServices owns the Rosetta permission/install UI.
+ROSETTA_HELPER="$APP_STAGE/Contents/Resources/RosettaInstaller.app/Contents"
+mkdir -p "$ROSETTA_HELPER/MacOS"
+xcrun clang -O2 -arch x86_64 -mmacosx-version-min=11.0 "$ROOT_DIR/src/RosettaRequest.c" -o "$ROSETTA_HELPER/MacOS/BTPRosettaRequest"
+python3 -I -B - "$ROSETTA_HELPER/Info.plist" <<'PYINFO'
+import plistlib, sys
+from pathlib import Path
+Path(sys.argv[1]).write_bytes(plistlib.dumps({
+    'CFBundleIdentifier': 'org.lendaii.btp.rosetta-install',
+    'CFBundleName': 'BTP Rosetta Setup', 'CFBundleExecutable': 'BTPRosettaRequest',
+    'CFBundlePackageType': 'APPL', 'CFBundleVersion': '1', 'LSUIElement': True,
+    'LSMinimumSystemVersion': '11.0'}))
+PYINFO
+codesign --force --sign - "$APP_STAGE/Contents/Resources/RosettaInstaller.app"
+
 SPARKLE_DIR="$STAGE_DIR/Sparkle"
 python3 -I -B "$ROOT_DIR/scripts/btp-build-deps.py" "$SPARKLE_DIR"
 mkdir -p "$APP_STAGE/Contents/Frameworks" "$APP_STAGE/Contents/Resources/Licenses"
@@ -70,7 +85,7 @@ xcrun swiftc -O -target arm64-apple-macos14.0 \
 xcrun swiftc -O -target arm64-apple-macos14.0 \
   -F "$APP_STAGE/Contents/Frameworks" -framework Sparkle \
   -Xlinker -rpath -Xlinker @executable_path/../Frameworks \
-  "$ROOT_DIR/src/BreakingThePattern.swift" "$ROOT_DIR/src/BTPUpdater.swift" "$ROOT_DIR/src/BTPUpdateBackup.swift" "$ROOT_DIR/src/BTPLanguage.swift" \
+  "$ROOT_DIR/src/BreakingThePattern.swift" "$ROOT_DIR/src/BTPRosettaSetup.swift" "$ROOT_DIR/src/BTPUpdater.swift" "$ROOT_DIR/src/BTPUpdateBackup.swift" "$ROOT_DIR/src/BTPLanguage.swift" \
   -o "$APP_STAGE/Contents/MacOS/BreakingThePattern"
 chmod 755 "$APP_STAGE/Contents/MacOS/BreakingThePattern"
 

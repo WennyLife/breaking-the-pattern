@@ -112,6 +112,14 @@ enum BreakState: Equatable {
     case readyToPlay
     case errorMissingFiles([String])
     case errorRuntime(String)
+    case errorPreparation(String)
+
+    var executionError: String? {
+        switch self {
+        case .errorRuntime(let message), .errorPreparation(let message): return message
+        default: return nil
+        }
+    }
     case errorSecurityMalware(String) // Legacy state identifier; no size-based malware detection.
 }
 
@@ -386,6 +394,7 @@ final class BTPViewModel: ObservableObject {
     }
 
     func selectProfile(_ id: String) {
+        guard state != .breaking else { return }
         selectedProfileID = id
         UserDefaults.standard.set(id, forKey: "btp_last_selected_profile")
         guard let idx = profiles.firstIndex(where: { $0.id == id }) else { return }
@@ -400,6 +409,7 @@ final class BTPViewModel: ObservableObject {
     }
 
     func removeProfile(_ id: String) {
+        guard state != .breaking else { return }
         profiles.removeAll(where: { $0.id == id })
         saveProfilesToDisk()
         if selectedProfileID == id {
@@ -415,6 +425,7 @@ final class BTPViewModel: ObservableObject {
     }
 
     func chooseFolderWithPanel() {
+        guard state != .breaking else { return }
         let panel = NSOpenPanel()
         panel.title = L("Selecione a pasta do jogo Windows")
         panel.canChooseFiles = false
@@ -558,6 +569,7 @@ final class BTPViewModel: ObservableObject {
     }
 
     func handleDroppedFolder(_ url: URL) {
+        guard state != .breaking else { return }
         let fm = FileManager.default
         var isDir: ObjCBool = false
         guard fm.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue else {
@@ -791,15 +803,51 @@ final class BTPViewModel: ObservableObject {
     }
 
     func performBreak() {
+        guard state != .breaking,
+              let profile = currentProfile, profile.folderPath != nil else { return }
+        guard ["gtasa", "nfsu2"].contains(profile.id) else {
+            state = .errorPreparation("Este jogo está em testes. O suporte será incluído numa atualização futura. Seus apps já preparados continuam disponíveis.")
+            return
+        }
+        state = .breaking
+        progress = 0
+        progressText = "Verificando componentes necessários…"
+        Task {
+            do {
+                let installed = await Task.detached { BTPRosettaSetup.isAvailable() }.value
+                if !installed {
+                    let alert = NSAlert()
+                    alert.messageText = L("Instalar Rosetta e continuar?")
+                    alert.informativeText = L("Este jogo precisa do Rosetta da Apple. O macOS abrirá a instalação oficial e poderá pedir sua autorização. É necessário acesso à internet. Depois, o BTP continuará o preparo automaticamente.")
+                    alert.addButton(withTitle: L("Instalar e continuar"))
+                    alert.addButton(withTitle: L("Agora não"))
+                    guard alert.runModal() == .alertFirstButtonReturn else {
+                        self.state = .readyToBreak
+                        self.progressText = "Instalação cancelada. Clique em BREAK quando quiser continuar."
+                        return
+                    }
+                    self.progressText = "Autorize a instalação do Rosetta na janela do macOS. O preparo continuará automaticamente…"
+                    let helper = Bundle.main.bundleURL.appendingPathComponent("Contents/Resources/RosettaInstaller.app")
+                    try await Task.detached { try BTPRosettaSetup.install(helper: helper) }.value
+                }
+                self.startPreparation()
+            } catch {
+                self.progress = 0
+                self.progressText = "Preparação interrompida. Você pode tentar novamente."
+                self.state = .errorPreparation(error.localizedDescription)
+            }
+        }
+    }
+
+    private func startPreparation() {
         guard let idx = profiles.firstIndex(where: { $0.id == selectedProfileID }),
               let path = profiles[idx].folderPath else { return }
 
-        state = .breaking
         progress = 15
         progressText = "Preparando BTP HyperMetal + Neural (Metal e x87)..."
 
         guard ["gtasa", "nfsu2"].contains(selectedProfileID) else {
-            state = .errorRuntime("Este jogo está em testes. O suporte será incluído numa atualização futura. Seus apps já preparados continuam disponíveis.")
+            state = .errorPreparation("Este jogo está em testes. O suporte será incluído numa atualização futura. Seus apps já preparados continuam disponíveis.")
             return
         }
 
@@ -828,6 +876,7 @@ final class BTPViewModel: ObservableObject {
                           let step = Double(line[line.index(after: line.startIndex)..<slash]) else { continue }
                     let label = line.split(separator: "]", maxSplits: 1).last.map { String($0).trimmingCharacters(in: .whitespaces) } ?? ""
                     Task { @MainActor in
+                        guard self.state == .breaking else { return }
                         self.progress = 15 + step / 5 * 80
                         self.progressText = label
                     }
@@ -848,12 +897,14 @@ final class BTPViewModel: ObservableObject {
                 } else {
                     let errLog = (try? String(contentsOf: logURL, encoding: .utf8)) ?? ""
                     await MainActor.run {
-                        self.state = .errorRuntime("Erro ao preparar \(title): \(errLog.suffix(300))")
+                        self.progress = 0
+                        self.state = .errorPreparation("Erro ao preparar \(title): \(errLog.suffix(300))")
                     }
                 }
             } catch {
                 await MainActor.run {
-                    self.state = .errorRuntime("Falha ao executar preparação: \(error.localizedDescription)")
+                    self.progress = 0
+                    self.state = .errorPreparation("Falha ao executar preparação: \(error.localizedDescription)")
                 }
             }
         }
@@ -1301,7 +1352,7 @@ struct ContentView: View {
                         .padding(10)
                         .background(RoundedRectangle(cornerRadius: 8).fill(Color.red.opacity(0.12)))
                         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.red.opacity(0.35), lineWidth: 1))
-                    } else if case .errorRuntime(let msg) = vm.state {
+                    } else if let msg = vm.state.executionError {
                         HStack(alignment: .top, spacing: 10) {
                             BTPText("🛡️")
                             VStack(alignment: .leading, spacing: 3) {
@@ -1348,7 +1399,7 @@ struct ContentView: View {
 
                         Button {
                             switch vm.state {
-                            case .readyToBreak:
+                            case .readyToBreak, .errorPreparation:
                                 vm.performBreak()
                             case .readyToInstallAndBreak(let cabURL):
                                 vm.performInstallAndBreak(cabURL: cabURL)
@@ -1397,7 +1448,7 @@ struct ContentView: View {
                 .padding(18)
             }
         }
-        .frame(width: 780, height: 470)
+        .frame(minWidth: 780, minHeight: 470)
         .environment(\.locale, Locale(identifier: language.code))
         .sheet(isPresented: $updates.showSettings) { BTPUpdatesView(updates: updates) }
     }
@@ -1407,6 +1458,7 @@ struct ContentView: View {
         case .empty: return "📂 SELECIONAR PASTA DO JOGO"
         case .readyToInstallAndBreak: return "📦 PASSO 1: INSTALAR JOGO NO MAC (EXTRAIR .CAB)"
         case .readyToBreak: return "⚡ PASSO 2: BREAK (PREPARAR APP DE MAC)"
+        case .errorPreparation: return "↻ TENTAR NOVAMENTE"
         case .breaking: return "⚙️ PREPARANDO APLICATIVO DE MAC..."
         case .readyToPlay, .errorRuntime: return "🎮 ABRIR JOGO"
         case .errorMissingFiles: return "🚫 PASTA INCOMPLETA"
@@ -1416,7 +1468,7 @@ struct ContentView: View {
 
     private var buttonColor: Color {
         switch vm.state {
-        case .readyToBreak, .readyToInstallAndBreak, .breaking: return Color.accentColor
+        case .readyToBreak, .readyToInstallAndBreak, .breaking, .errorPreparation: return Color.accentColor
         case .readyToPlay, .errorRuntime: return Color.green
         case .empty: return Color.secondary
         case .errorMissingFiles: return Color.gray.opacity(0.4)
@@ -1472,10 +1524,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .preferredColorScheme(.dark)
         window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 780, height: 470),
-            styleMask: [.titled, .closable, .miniaturizable],
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
+        window.contentMinSize = NSSize(width: 780, height: 470)
         window.appearance = NSAppearance(named: .darkAqua)
         window.title = "Breaking the Pattern"
         window.center()

@@ -115,5 +115,17 @@
   "Falha ao concluir a configuração do Wine; app atual preservado. Registro: %@": "Wine setup failed; the current app was preserved. Log: %@",
   "Executável não encontrado: %@": "Executable not found: %@",
   "Renderizador não corresponde à versão testada da receita GTA.": "The renderer does not match the tested GTA profile version.",
-  "Falha ao extrair o grupo %@. A pasta original foi preservada.": "Failed to extract group %@. Your original folder was preserved."
+  "Falha ao extrair o grupo %@. A pasta original foi preservada.": "Failed to extract group %@. Your original folder was preserved.",
+  "Instalar Rosetta e continuar?": "Install Rosetta and continue?",
+  "Instalar e continuar": "Install and continue",
+  "Agora não": "Not now",
+  "Verificando componentes necessários…": "Checking required components…",
+  "Este jogo precisa do Rosetta da Apple. O macOS abrirá a instalação oficial e poderá pedir sua autorização. É necessário acesso à internet. Depois, o BTP continuará o preparo automaticamente.": "This game requires Apple Rosetta. macOS will open the official installer and may ask for your authorization. Internet access is required. BTP will then resume preparation automatically.",
+  "Instalação cancelada. Clique em BREAK quando quiser continuar.": "Installation cancelled. Click BREAK when you want to continue.",
+  "Autorize a instalação do Rosetta na janela do macOS. O preparo continuará automaticamente…": "Authorize Rosetta installation in the macOS window. Preparation will resume automatically…",
+  "Preparação interrompida. Você pode tentar novamente.": "Preparation stopped. You can try again.",
+  "↻ TENTAR NOVAMENTE": "↻ TRY AGAIN",
+  "O Rosetta ainda não está disponível. A instalação pode ter sido cancelada. Clique em TENTAR NOVAMENTE para instalar e continuar.": "Rosetta is still unavailable. Installation may have been cancelled. Click TRY AGAIN to install and continue.",
+  "O componente de instalação do Rosetta não foi encontrado. Reinstale o BTP pelo pacote oficial.": "The Rosetta installation component was not found. Reinstall BTP from the official package.",
+  "A instalação do Rosetta está demorando. Conclua o aviso do macOS e clique em TENTAR NOVAMENTE.": "Rosetta installation is taking longer than expected. Complete the macOS prompt and click TRY AGAIN."
 }
