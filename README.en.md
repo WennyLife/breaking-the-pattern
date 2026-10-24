@@ -40,7 +40,7 @@ Validated per-game recipes are built into the tool. BTP identifies the executabl
 |:---|:---|:---|
 | Choose the complete folder of a supported game. | BTP identifies its edition and prepares the components and fixes. | Use **OPEN GAME** or the generated app in your Applications folder. |
 
-## 🏁 Games in this release
+## 🏁 Tested games
 
 | Game | Confirmed result |
 |:---|:---|
@@ -49,7 +49,15 @@ Validated per-game recipes are built into the tool. BTP identifies the executabl
 
 Support depends on the **game edition**, not just the folder name. BTP checks the executable before applying a recipe. [Accepted editions and validation →](docs/VALIDATION-0.2.3.md)
 
-New games are added as their solutions pass gameplay validation. Splinter Cell Conviction is outside this initial release.
+### Splinter Cell Conviction: playable on Mac
+
+**Splinter Cell Conviction is also running in the tested local installation.** On October 22, 2026, the project maintainer confirmed working gameplay, reporting about 60 FPS during play and drops to about 30 FPS in some cutscenes. These are user-reported session results, not a benchmark or a guarantee for other Macs.
+
+It runs through **Wine/Rosetta and graphics translation to Metal**, with a game-specific compatibility profile. The BTP application is native to macOS; the game remains the Windows version and has not been recompiled into a native Mac port. The Conviction recipe remains experimental for other installations: automatic preparation has not been validated across all editions or on another Mac.
+
+[Test status, limitations and candidate games (Portuguese) →](docs/JOGOS-TESTADOS.md)
+
+The public download remains **0.2.4**; the verified development installation is **0.2.6**. This documentation update does not publish a new installer. New games are added after their solutions are reproduced and tested in gameplay.
 
 ## 📥 Installation
 
